@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -110,9 +109,18 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
               val: selectedStatus,
               items: const [
                 DropdownMenuItem(value: null, child: Text("ทั้งหมด")),
-                DropdownMenuItem(value: RoomStatus.available, child: Text("ห้องว่าง")),
-                DropdownMenuItem(value: RoomStatus.occupied, child: Text("ไม่ว่าง")),
-                DropdownMenuItem(value: RoomStatus.maintenance, child: Text("ซ่อมแซม")),
+                DropdownMenuItem(
+                  value: RoomStatus.available,
+                  child: Text("ห้องว่าง"),
+                ),
+                DropdownMenuItem(
+                  value: RoomStatus.occupied,
+                  child: Text("ไม่ว่าง"),
+                ),
+                DropdownMenuItem(
+                  value: RoomStatus.maintenance,
+                  child: Text("ซ่อมแซม"),
+                ),
               ],
               on: (v) => setState(() => selectedStatus = v),
             ),
@@ -165,7 +173,11 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
           );
         }).toList(),
         onChanged: on,
-        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: cIcon, size: 18),
+        icon: const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: cIcon,
+          size: 18,
+        ),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(color: cIcon, fontSize: 12),
@@ -175,7 +187,8 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         ),
       ),
     );
@@ -213,7 +226,10 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 4,
+                    ),
                     child: Row(
                       children: [
                         const Icon(Icons.business, size: 15, color: cIcon),
@@ -251,7 +267,9 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
                           childAspectRatio: 0.92,
                         ),
                         itemCount: roomsInFloor.length,
-                        itemBuilder: (_, rIndex) => _roomCard(roomsInFloor[rIndex]),
+                        itemBuilder: (context, rIndex) {
+                          return _roomCard(roomsInFloor[rIndex]);
+                        },
                       );
                     },
                   ),
@@ -274,12 +292,18 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
     if (room.status == RoomStatus.available) {
       sColor = Colors.green.shade700;
       sLabel = "ว่าง";
-      sIcon = room.type == RoomType.air ? Icons.ac_unit_rounded : Icons.air_rounded;
+      sIcon =
+          room.type == RoomType.air
+              ? Icons.ac_unit_rounded
+              : Icons.air_rounded;
       bgColor = Colors.green.shade50;
     } else if (room.status == RoomStatus.occupied) {
       sColor = Colors.red.shade700;
       sLabel = "ไม่ว่าง";
-      sIcon = room.type == RoomType.air ? Icons.ac_unit_rounded : Icons.air_rounded;
+      sIcon =
+          room.type == RoomType.air
+              ? Icons.ac_unit_rounded
+              : Icons.air_rounded;
       bgColor = Colors.red.shade50;
     } else {
       sColor = cIcon;
@@ -321,7 +345,9 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       color: bgColor,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(14),
+                      ),
                     ),
                     child: Icon(sIcon, size: 22, color: sColor),
                   ),
@@ -355,7 +381,10 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
               top: 4,
               right: 4,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 1,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(5),
@@ -369,9 +398,10 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
                   style: TextStyle(
                     fontSize: 8,
                     fontWeight: FontWeight.bold,
-                    color: room.type == RoomType.air
-                        ? Colors.blue.shade700
-                        : Colors.orange.shade800,
+                    color:
+                        room.type == RoomType.air
+                            ? Colors.blue.shade700
+                            : Colors.orange.shade800,
                   ),
                 ),
               ),
@@ -404,6 +434,8 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
 
   @override
   Widget build(BuildContext context) {
+    final canGoBack = Navigator.canPop(context);
+
     return Scaffold(
       backgroundColor: cBg,
       appBar: AppBar(
@@ -412,6 +444,16 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
         backgroundColor: Colors.white,
         centerTitle: true,
         automaticallyImplyLeading: false,
+        leading: canGoBack
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: cTextMain,
+                  size: 18,
+                ),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text(
           "ห้องพัก",
           style: TextStyle(
