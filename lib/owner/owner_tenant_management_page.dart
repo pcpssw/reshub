@@ -152,7 +152,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
     final room = _roomLabel(u);
 
     if (role == "old_tenant") {
-      return room == "รอการจัดห้อง" ? "ผู้เช่าเก่า" : "ห้อง $room";
+      return room == "รอการจัดห้อง" ? "ผู้เช่าห้องเก่า" : "ห้องเดิม $room";
     }
 
     return room == "รอการจัดห้อง" ? room : "ห้อง $room";
@@ -189,21 +189,32 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          labelColor: cTextMain,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: cTextMain,
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: fBody,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: false,
+              labelColor: cTextMain,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: cTextMain,
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              tabs: const [
+                Tab(text: "ผู้เช่าห้อง"),
+                Tab(text: "ประวัติห้อง"),
+                Tab(text: "ผู้ดูแลห้อง"),
+              ],
+            ),
           ),
-          tabs: const [
-            Tab(text: "ผู้เช่าหอพัก"),
-            Tab(text: "ประวัติผู้เช่าเก่า"),
-            Tab(text: "ผู้ดูแลหอพัก"),
-          ],
         ),
       ),
       body: loading
@@ -260,8 +271,8 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
 
     if (filtered.isEmpty) {
       String emptyText = "ไม่พบข้อมูลรายชื่อ";
-      if (role == "old_tenant") emptyText = "ไม่พบประวัติผู้เช่าเก่า";
-      if (role == "admin") emptyText = "ไม่พบข้อมูลผู้ดูแลหอพัก";
+      if (role == "old_tenant") emptyText = "ไม่พบประวัติผู้เช่าห้องเก่า";
+      if (role == "admin") emptyText = "ไม่พบข้อมูลผู้ดูแลห้อง";
 
       return RefreshIndicator(
         onRefresh: _fetchTenants,

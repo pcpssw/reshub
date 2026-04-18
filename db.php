@@ -1,8 +1,8 @@
 <?php
 
-$host = "203.158.223.154";
+$host = "localhost";
 $user = "reshub";
-$pass = "CET2026kkw";
+$pass = "CET2026kkw!";
 $dbname = "reshub"; 
 
 $conn = new mysqli($host, $user, $pass, $dbname);
