@@ -11,6 +11,7 @@ class AppConfig {
       bool.fromEnvironment('USE_EMULATOR', defaultValue: false);
 
   static String get baseUrl {
+    
     if (kIsWeb) {
       return "https://$lanIP/$project/";
     }

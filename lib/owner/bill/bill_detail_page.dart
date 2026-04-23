@@ -57,20 +57,24 @@ class _BillDetailPageState extends State<BillDetailPage> {
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    userId =
-        prefs.getInt("user_id") ??
+    userId = prefs.getInt("user_id") ??
         int.tryParse(prefs.getString("user_id") ?? "") ??
         0;
     await _refreshDetail();
   }
 
+  double _safeDouble(num? value) => (value ?? 0).toDouble();
+
+  bool _hasMeterDetail(num? unit, num? pricePerUnit, num? totalValue) {
+    return unit != null || pricePerUnit != null || totalValue != null;
+  }
+
+  // คำนวณยอดรวมใหม่: ค่าเช่า + ส่วนกลาง + น้ำ + ไฟ เท่านั้น
   double get _calculateTotal {
-    double sum = it.rent + it.waterBill + it.elecBill + it.commonFee;
-    double otherCharges = it.utilityTotal - (it.waterBill + it.elecBill);
-    if (otherCharges > 0.1) {
-      sum += otherCharges;
-    }
-    if (sum == 0 && it.total > 0) return it.total;
+    double sum = it.rent + 
+                 it.commonFee + 
+                 _safeDouble(it.waterBill) + 
+                 _safeDouble(it.elecBill);
     return sum;
   }
 
@@ -195,8 +199,6 @@ class _BillDetailPageState extends State<BillDetailPage> {
   }
 
   Widget _buildBillSummaryCard() {
-    double otherService = it.utilityTotal - (it.waterBill + it.elecBill);
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -225,7 +227,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
             it.elecUnit,
             it.elecPricePerUnit,
           ),
-          if (otherService > 0.1) _rowItem("ค่าบริการอื่นๆ", otherService),
+          // ลบส่วนค่าบริการอื่นๆ ออกแล้ว
           const Divider(height: 20, thickness: 0.5),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -242,7 +244,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
                 "${_calculateTotal.toStringAsFixed(0)} บาท",
                 style: _kanit(
                   size: fTitle,
-                  weight: FontWeight.normal,
+                  weight: FontWeight.bold,
                   color: cTextMain,
                 ),
               ),
@@ -253,7 +255,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
     );
   }
 
-  Widget _rowItem(String label, double value) => Padding(
+  Widget _rowItem(String label, num value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -280,9 +282,9 @@ class _BillDetailPageState extends State<BillDetailPage> {
 
   Widget _rowItemWithDetail(
     String label,
-    double totalValue,
-    double unit,
-    double pricePerUnit,
+    num? totalValue,
+    num? unit,
+    num? pricePerUnit,
   ) =>
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -299,10 +301,19 @@ class _BillDetailPageState extends State<BillDetailPage> {
                   ),
                   children: [
                     TextSpan(text: label),
-                    if (unit > 0)
+                    if (_hasMeterDetail(unit, pricePerUnit, totalValue))
                       TextSpan(
                         text:
-                            " (${unit.toStringAsFixed(0)} หน่วย x ${pricePerUnit.toStringAsFixed(0)} บาท)",
+                            " (${_safeDouble(unit).toStringAsFixed(0)} หน่วย x ${_safeDouble(pricePerUnit).toStringAsFixed(0)} บาท)",
+                        style: _kanit(
+                          color: Colors.grey.shade600,
+                          size: fCaption,
+                          weight: FontWeight.normal,
+                        ),
+                      )
+                    else
+                      TextSpan(
+                        text: " (ยังไม่ได้กรอก)",
                         style: _kanit(
                           color: Colors.grey.shade600,
                           size: fCaption,
@@ -315,7 +326,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
             ),
             const SizedBox(width: 8),
             Text(
-              "${totalValue.toStringAsFixed(0)} บาท",
+              "${_safeDouble(totalValue).toStringAsFixed(0)} บาท",
               style: _kanit(
                 weight: FontWeight.normal,
                 size: fDetail,
@@ -404,81 +415,21 @@ class _BillDetailPageState extends State<BillDetailPage> {
             items: [
               DropdownMenuItem(
                 value: "paid",
-                child: Text(
-                  "ชำระแล้ว",
-                  style: _kanit(size: fBody, weight: FontWeight.normal),
-                ),
+                child: Text("ชำระแล้ว", style: _kanit(size: fBody)),
               ),
               DropdownMenuItem(
                 value: "unpaid",
-                child: Text(
-                  "ค้างชำระ",
-                  style: _kanit(size: fBody, weight: FontWeight.normal),
-                ),
+                child: Text("ค้างชำระ", style: _kanit(size: fBody)),
               ),
               DropdownMenuItem(
                 value: "overdue",
-                child: Text(
-                  "เลยกำหนด",
-                  style: _kanit(size: fBody, weight: FontWeight.normal),
-                ),
+                child: Text("เลยกำหนด", style: _kanit(size: fBody)),
               ),
               DropdownMenuItem(
                 value: "no_tenant",
-                child: Text(
-                  "ว่าง",
-                  style: _kanit(size: fBody, weight: FontWeight.normal),
-                ),
+                child: Text("ว่าง", style: _kanit(size: fBody)),
               ),
             ],
-            selectedItemBuilder: (context) {
-              return [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "ชำระแล้ว",
-                    style: _kanit(
-                      size: fBody,
-                      color: cTextMain,
-                      weight: FontWeight.normal,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "ค้างชำระ",
-                    style: _kanit(
-                      size: fBody,
-                      color: cTextMain,
-                      weight: FontWeight.normal,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "เลยกำหนด",
-                    style: _kanit(
-                      size: fBody,
-                      color: cTextMain,
-                      weight: FontWeight.normal,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "ว่าง",
-                    style: _kanit(
-                      size: fBody,
-                      color: cTextMain,
-                      weight: FontWeight.normal,
-                    ),
-                  ),
-                ),
-              ];
-            },
             onChanged: (v) => setState(() => statusKey = v ?? statusKey),
           ),
           const SizedBox(height: 16),
@@ -504,11 +455,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
                     )
                   : Text(
                       "บันทึก",
-                      style: _kanit(
-                        color: Colors.white,
-                        size: fBody,
-                        weight: FontWeight.normal,
-                      ),
+                      style: _kanit(color: Colors.white, size: fBody),
                     ),
             ),
           ),
@@ -537,9 +484,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              statusKey == "paid"
-                  ? Icons.check_circle_outline
-                  : Icons.info_outline,
+              statusKey == "paid" ? Icons.check_circle_outline : Icons.info_outline,
               color: statusColor,
               size: 26,
             ),

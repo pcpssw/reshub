@@ -650,22 +650,20 @@ if ($action === 'bulk_send') {
     $stR = $conn->prepare($sqlRooms);
     $stR->bind_param('i', $dorm_id);
     $stR->execute();
-    $roomsRes = $stR->get_result();
+    $rooms = $stR->get_result();
 
-    if ($roomsRes->num_rows === 0) {
+    if ($rooms->num_rows === 0) {
         $stR->close();
         jfail('ไม่พบห้องที่มีผู้เช่าอยู่');
     }
 
-    $readyRooms = [];
-    $missingMeterRooms = [];
+    $created = 0;
     $skipped = 0;
 
-    while ($r = $roomsRes->fetch_assoc()) {
+    while ($r = $rooms->fetch_assoc()) {
         $room_id = intval($r['room_id']);
         $user_id = intval($r['tenant_id']);
         $baseRent = floatval($r['base_rent']);
-        $roomNumber = trim((string)($r['room_number'] ?? ''));
 
         $check = $conn->prepare('SELECT payment_id FROM rh_payments WHERE dorm_id=? AND room_id=? AND user_id=? AND month=? AND year=? LIMIT 1');
         $check->bind_param('iiiii', $dorm_id, $room_id, $user_id, $month, $year);
@@ -678,102 +676,39 @@ if ($action === 'bulk_send') {
             continue;
         }
 
-        $stM = $conn->prepare('
-            SELECT water_old, water_new, elec_old, elec_new
-            FROM rh_meter
-            WHERE dorm_id=? AND room_id=? AND month=? AND year=?
-            LIMIT 1
-        ');
+        $stM = $conn->prepare('SELECT water_old, water_new, elec_old, elec_new FROM rh_meter WHERE dorm_id=? AND room_id=? AND month=? AND year=? LIMIT 1');
         $stM->bind_param('iiii', $dorm_id, $room_id, $month, $year);
         $stM->execute();
-        $m = $stM->get_result()->fetch_assoc();
+        $m = $stM->get_result()->fetch_assoc() ?: [];
         $stM->close();
 
-        if (
-            !$m ||
-            !isset($m['water_old'], $m['water_new'], $m['elec_old'], $m['elec_new'])
-        ) {
-            $missingMeterRooms[] = ($roomNumber !== '' ? $roomNumber : ('ID ' . $room_id));
-            continue;
-        }
-
-        $readyRooms[] = [
-            'room_id' => $room_id,
-            'user_id' => $user_id,
-            'room_number' => $roomNumber,
-            'base_rent' => $baseRent,
-            'water_old' => $m['water_old'],
-            'water_new' => $m['water_new'],
-            'elec_old' => $m['elec_old'],
-            'elec_new' => $m['elec_new'],
-        ];
-    }
-
-    $stR->close();
-
-    if (!empty($missingMeterRooms)) {
-        jfail(
-            'ยังส่งบิลไม่ได้ เพราะห้องต่อไปนี้ยังไม่ได้กรอกค่าน้ำ/ค่าไฟ: ' . implode(', ', $missingMeterRooms),
-            400,
-            [
-                'missing_rooms' => $missingMeterRooms,
-                'created' => 0,
-                'skipped' => $skipped,
-            ]
-        );
-    }
-
-    if (empty($readyRooms)) {
-        jfail('ไม่มีห้องที่พร้อมส่งบิล', 400, [
-            'created' => 0,
-            'skipped' => $skipped,
-        ]);
-    }
-
-    $created = 0;
-
-    foreach ($readyRooms as $r) {
         $parts = calc_bill_parts(
-            $r['base_rent'],
-            $r['water_old'],
-            $r['water_new'],
-            $r['elec_old'],
-            $r['elec_new'],
+            $baseRent,
+            $m['water_old'] ?? 0,
+            $m['water_new'] ?? 0,
+            $m['elec_old'] ?? 0,
+            $m['elec_new'] ?? 0,
             $settings['water_rate'],
             $settings['electric_rate']
         );
 
-        $ins = $conn->prepare("
-            INSERT INTO rh_payments (user_id, dorm_id, room_id, month, year, total_amount, status)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending')
-        ");
-        $ins->bind_param(
-            'iiiiid',
-            $r['user_id'],
-            $dorm_id,
-            $r['room_id'],
-            $month,
-            $year,
-            $parts['total']
-        );
+        $ins = $conn->prepare("INSERT INTO rh_payments (user_id, dorm_id, room_id, month, year, total_amount, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending')");
+        $ins->bind_param('iiiiid', $user_id, $dorm_id, $room_id, $month, $year, $parts['total']);
         $ins->execute();
         $paymentId = (int)$ins->insert_id;
         $ins->close();
 
         $created++;
 
-        $message = 'บิลเดือน ' . sprintf('%02d/%04d', $month, $year) .
-            ' ยอดรวม ' . number_format($parts['total'], 2) . ' บาท';
-
-        $noti = $conn->prepare('
-            INSERT INTO rh_notifications (user_id, dorm_id, type_id, ref_id, message, is_read)
-            VALUES (?, ?, 2, ?, ?, 0)
-        ');
-        $noti->bind_param('iiis', $r['user_id'], $dorm_id, $paymentId, $message);
+        $message = 'บิลเดือน ' . sprintf('%02d/%04d', $month, $year) . ' ยอดรวม ' . number_format($parts['total'], 2) . ' บาท';
+        $noti = $conn->prepare('INSERT INTO rh_notifications (user_id, dorm_id, type_id, ref_id, message, is_read) VALUES (?, ?, 2, ?, ?, 0)');
+        $noti->bind_param('iiis', $user_id, $dorm_id, $paymentId, $message);
         $noti->execute();
         $noti->close();
     }
 
+    $stR->close();
     jok([
         'message' => "ส่งบิลสำเร็จ {$created} ห้อง",
         'created' => $created,
