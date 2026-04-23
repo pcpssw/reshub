@@ -190,7 +190,7 @@ if ($action === 'create') {
         $stmt->close();
         $typeName = $tRow['type_name'] ?? 'ทั่วไป';
 
-        $message = 'มีรายการแจ้งซ่อมใหม่ ห้อง ' . ($room['room_number'] ?? '-') . ' ประเภท: ' . $typeName;
+        $message = 'มีรายการแจ้งซ่อมใหม่ ห้อง ' . ($room['room_number'] ?? '-') . ' ประเภท : ' . $typeName;
         $stmt = $conn->prepare("SELECT user_id FROM rh_dorm_memberships WHERE dorm_id = ? AND approve_status = 'approved' AND role_code IN ('a', 'o')");
         $stmt->bind_param('i', $dormId);
         $stmt->execute();

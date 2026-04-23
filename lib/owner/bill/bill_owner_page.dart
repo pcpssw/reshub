@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../config.dart';
 import 'bill_detail_page.dart';
 
-// --- 1. Data Model ---
+// --- 1. Data Model (คงเดิม) ---
 class BillItem {
   final int roomId, dormId, floor, month, year;
   final String roomNumber, building, dueDate, statusKey, statusLabel, statusColor;
@@ -49,10 +49,8 @@ class BillItem {
   });
 
   factory BillItem.fromJson(Map<String, dynamic> j) {
-    int toInt(dynamic v, {int def = 0}) =>
-        int.tryParse(v?.toString() ?? "") ?? def;
-    double toDouble(dynamic v, {double def = 0}) =>
-        double.tryParse(v?.toString() ?? "") ?? def;
+    int toInt(dynamic v, {int def = 0}) => int.tryParse(v?.toString() ?? "") ?? def;
+    double toDouble(dynamic v, {double def = 0}) => double.tryParse(v?.toString() ?? "") ?? def;
 
     return BillItem(
       roomId: toInt(j["room_id"]),
@@ -66,9 +64,7 @@ class BillItem {
       month: toInt(j["month"]),
       year: toInt(j["year"]),
       dueDate: (j["due_date"] ?? "").toString(),
-      paymentId: (j["payment_id"] == null || toInt(j["payment_id"]) == 0)
-          ? null
-          : toInt(j["payment_id"]),
+      paymentId: (j["payment_id"] == null || toInt(j["payment_id"]) == 0) ? null : toInt(j["payment_id"]),
       paymentStatus: j["payment_status"]?.toString(),
       statusKey: (j["status_key"] ?? "unpaid").toString(),
       statusLabel: (j["status_label"] ?? "ค้างชำระ").toString(),
@@ -88,15 +84,10 @@ class BillItem {
     );
   }
 
-  String get roomDisplay => "$building-$roomNumber";
-
-  // ฟังก์ชันคำนวณยอดรวมใหม่ (ดักห้องว่างไว้แล้ว)
   double get calculatedTotal {
-    if (tenantId == null || statusKey == "no_tenant") return 0.0;
-
+    if (tenantId == null) return 0.0;
     double currentWaterBill = waterBill > 0 ? waterBill : (waterUnit * waterPricePerUnit);
     double currentElecBill = elecBill > 0 ? elecBill : (elecUnit * elecPricePerUnit);
-    
     return rent + currentWaterBill + currentElecBill + commonFee;
   }
 }
@@ -132,18 +123,12 @@ class _BillAdminPageState extends State<BillAdminPage> {
   List<String> floorOptions = ["ทั้งหมด"];
 
   final List<Map<String, dynamic>> monthOptions = const [
-    {"value": 1, "label": "ม.ค."},
-    {"value": 2, "label": "ก.พ."},
-    {"value": 3, "label": "มี.ค."},
-    {"value": 4, "label": "เม.ย."},
-    {"value": 5, "label": "พ.ค."},
-    {"value": 6, "label": "มิ.ย."},
-    {"value": 7, "label": "ก.ค."},
-    {"value": 8, "label": "ส.ค."},
-    {"value": 9, "label": "ก.ย."},
-    {"value": 10, "label": "ต.ค."},
-    {"value": 11, "label": "พ.ย."},
-    {"value": 12, "label": "ธ.ค."},
+    {"value": 1, "label": "ม.ค."}, {"value": 2, "label": "ก.พ."},
+    {"value": 3, "label": "มี.ค."}, {"value": 4, "label": "เม.ย."},
+    {"value": 5, "label": "พ.ค."}, {"value": 6, "label": "มิ.ย."},
+    {"value": 7, "label": "ก.ค."}, {"value": 8, "label": "ส.ค."},
+    {"value": 9, "label": "ก.ย."}, {"value": 10, "label": "ต.ค."},
+    {"value": 11, "label": "พ.ย."}, {"value": 12, "label": "ธ.ค."},
   ];
 
   List<int> get yearOptions {
@@ -152,10 +137,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
   }
 
   String _getMonthFull(int month) {
-    const months = [
-      "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-      "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-    ];
+    const months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
     return months[month - 1];
   }
 
@@ -170,9 +152,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    dormId = prefs.getInt("dorm_id") ??
-        int.tryParse(prefs.getString("dorm_id") ?? "") ??
-        0;
+    dormId = prefs.getInt("dorm_id") ?? int.tryParse(prefs.getString("dorm_id") ?? "") ?? 0;
     if (dormId == 0) dormId = prefs.getInt("selected_dorm_id") ?? 0;
     userId = prefs.getInt("user_id") ?? 0;
     await fetchBills();
@@ -192,40 +172,31 @@ class _BillAdminPageState extends State<BillAdminPage> {
           "status": selectedStatusKey,
         },
       );
-
       final data = jsonDecode(res.body);
       if (data["ok"] == true) {
         final List list = data["data"] ?? [];
-        final fetched = list
-            .map((e) => BillItem.fromJson(Map<String, dynamic>.from(e)))
-            .toList();
+        final fetched = list.map((e) => BillItem.fromJson(Map<String, dynamic>.from(e))).toList();
 
         final bSet = {"ทั้งหมด"}, fSet = {"ทั้งหมด"};
         for (var it in fetched) {
           if (it.building.isNotEmpty) bSet.add(it.building);
           if (it.floor > 0) fSet.add(it.floor.toString());
         }
-
         setState(() {
           items = fetched;
           buildingOptions = bSet.toList()..sort();
-          floorOptions = fSet.toList()
-            ..sort((a, b) {
-              if (a == "ทั้งหมด") return -1;
-              if (b == "ทั้งหมด") return 1;
-              return int.parse(a).compareTo(int.parse(b));
-            });
+          floorOptions = fSet.toList()..sort((a, b) {
+            if (a == "ทั้งหมด") return -1;
+            if (b == "ทั้งหมด") return 1;
+            return int.parse(a).compareTo(int.parse(b));
+          });
         });
       }
-    } catch (e) {
-      debugPrint("Fetch Error: $e");
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
+    } catch (e) { debugPrint("Fetch Error: $e"); }
+    finally { if (mounted) setState(() => loading = false); }
   }
 
   Future<void> bulkSendBills() async {
-    // --- 1. แสดง Popup ยืนยันการส่งบิลก่อนเป็นอันดับแรก ---
     final confirm = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -237,72 +208,28 @@ class _BillAdminPageState extends State<BillAdminPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFE3F2FD),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.send_rounded, color: Color(0xFF1976D2), size: 40),
-              ),
+              Container(padding: const EdgeInsets.all(16), decoration: const BoxDecoration(color: Color(0xFFE3F2FD), shape: BoxShape.circle), child: const Icon(Icons.send_rounded, color: Color(0xFF1976D2), size: 40)),
               const SizedBox(height: 20),
-              const Text(
-                "ยืนยันส่งบิล",
-                style: TextStyle(fontSize: fHeader, fontWeight: FontWeight.bold, color: cTextMain),
-              ),
+              const Text("ยืนยันส่งบิล", style: TextStyle(fontSize: fHeader, fontWeight: FontWeight.bold, color: cTextMain)),
               const SizedBox(height: 12),
-              Text(
-                "ต้องการส่งบิลเดือน ${_getMonthFull(selectedMonth)} $selectedYear\nให้กับผู้เช่าทุกห้องใช่หรือไม่?",
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: fDetail, color: Colors.black54, height: 1.4),
-              ),
+              Text("ต้องการส่งบิลเดือน ${_getMonthFull(selectedMonth)} $selectedYear\nให้กับผู้เช่าทุกห้องใช่หรือไม่?", textAlign: TextAlign.center, style: const TextStyle(fontSize: fDetail, color: Colors.black54, height: 1.4)),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: cIcon,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text("ยืนยันส่ง", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: cAccent),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text("ยกเลิก", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
+              Row(children: [
+                Expanded(child: ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: cIcon, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), child: const Text("ยืนยันส่ง", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+                const SizedBox(width: 12),
+                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), style: OutlinedButton.styleFrom(side: const BorderSide(color: cAccent), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), child: const Text("ยกเลิก", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold)))),
+              ]),
             ],
           ),
         ),
       ),
     );
 
-    // ถ้ากดยกเลิก ก็จบการทำงานตรงนี้เลย ไม่ทำอะไรต่อ
     if (confirm != true) return;
 
+    // เช็คเฉพาะห้องที่มีผู้เช่า (เพราะเรากรองห้องว่างออกไปแล้วใน UI)
+    List<BillItem> incompleteRooms = items.where((it) => it.tenantId != null && (it.waterUnit == 0 || it.elecUnit == 0)).toList();
 
-    // --- 2. พอกดยืนยันแล้ว ค่อยมาเช็คว่ามีห้องไหนยังไม่ได้กรอกค่าน้ำ/ค่าไฟ ---
-    List<BillItem> incompleteRooms = items.where((it) {
-      bool hasTenant = it.tenantId != null && it.statusKey != "no_tenant";
-      bool missingData = it.waterUnit == 0 || it.elecUnit == 0;
-      return hasTenant && missingData;
-    }).toList();
-
-
-    // --- 3. ถ้ามีห้องที่ข้อมูลไม่ครบ ให้เด้งเตือนและหยุดการส่งบิลไว้ก่อน ---
     if (incompleteRooms.isNotEmpty) {
       await showDialog(
         context: context,
@@ -314,150 +241,64 @@ class _BillAdminPageState extends State<BillAdminPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 40),
-                ),
+                Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.orange.shade50, shape: BoxShape.circle), child: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 40)),
                 const SizedBox(height: 20),
-                const Text(
-                  "ยังส่งบิลไม่ได้",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cTextMain),
-                ),
+                const Text("ยังส่งบิลไม่ได้", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cTextMain)),
                 const SizedBox(height: 8),
-                Text(
-                  "เดือน ${_getMonthFull(selectedMonth)} $selectedYear ยังมีห้องที่ไม่ได้กรอกค่าน้ำ/ค่าไฟ",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: fBody, color: Colors.black54),
-                ),
+                Text("เดือน ${_getMonthFull(selectedMonth)} $selectedYear ยังมีห้องที่ไม่ได้กรอกค่าน้ำ/ค่าไฟ", textAlign: TextAlign.center, style: const TextStyle(fontSize: fBody, color: Colors.black54)),
                 const SizedBox(height: 20),
                 Container(
                   constraints: const BoxConstraints(maxHeight: 200),
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF6EFE5),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  decoration: BoxDecoration(color: const Color(0xFFF6EFE5), borderRadius: BorderRadius.circular(16)),
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: incompleteRooms.map((room) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6.0),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.door_front_door_outlined, size: 18, color: cIcon),
-                              const SizedBox(width: 10),
-                              Text(
-                                "ห้อง ${room.roomNumber}",
-                                style: const TextStyle(
-                                  fontSize: fBody, 
-                                  fontWeight: FontWeight.bold, 
-                                  color: cTextMain
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                      children: incompleteRooms.map((room) => Padding(padding: const EdgeInsets.symmetric(vertical: 6.0), child: Row(children: [const Icon(Icons.door_front_door_outlined, size: 18, color: cIcon), const SizedBox(width: 10), Text("ห้อง ${room.roomNumber}", style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold, color: cTextMain))]))).toList(),
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cIcon,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      elevation: 0,
-                    ),
-                    child: const Text("ตกลง", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
-                ),
+                SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(ctx), style: ElevatedButton.styleFrom(backgroundColor: cIcon, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14), elevation: 0), child: const Text("ตกลง", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))),
               ],
             ),
           ),
         ),
       );
-      return; // จบการทำงานตรงนี้เลย (เบรกไว้ ไม่ส่งไปฐานข้อมูล)
+      return;
     }
 
-    // --- 4. ถ้าผ่านหมดทุกอย่าง ค่อยยิง API ส่งบิล ---
     setState(() => loading = true);
     try {
-      final res = await http.post(
-        Uri.parse(AppConfig.url("bills_api.php")),
-        body: {
-          "action": "bulk_send",
-          "dorm_id": dormId.toString(),
-          "month": selectedMonth.toString(),
-          "year": selectedYear.toString(),
-        },
-      );
-
+      final res = await http.post(Uri.parse(AppConfig.url("bills_api.php")), body: {"action": "bulk_send", "dorm_id": dormId.toString(), "month": selectedMonth.toString(), "year": selectedYear.toString()});
       final data = jsonDecode(res.body);
       if (data["ok"] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("ส่งบิลสำเร็จ ${data['created']} ห้อง")),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ส่งบิลสำเร็จ ${data['created']} ห้อง")));
         await fetchBills();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("ผิดพลาด: ${data['message']}")),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ผิดพลาด: ${data['message']}")));
         if (mounted) setState(() => loading = false);
       }
-    } catch (e) {
-      if (mounted) setState(() => loading = false);
-    }
+    } catch (e) { if (mounted) setState(() => loading = false); }
   }
 
-  // --- ส่วนแสดงผล Card ---
   Widget _buildModernBillCard(BillItem it) {
-    bool isNoTenant = it.statusKey == "no_tenant" || it.tenantId == null;
-    bool isDataMissing = !isNoTenant && (it.waterUnit == 0 || it.elecUnit == 0);
-    
-    Color sColor;
-    try {
-      sColor = Color(int.parse(it.statusColor.replaceFirst('#', '0xFF')));
-    } catch (_) {
-      sColor = isNoTenant ? Colors.blueGrey : Colors.red;
-    }
+    bool isDataMissing = it.waterUnit == 0 || it.elecUnit == 0;
+    Color sColor = Color(int.parse(it.statusColor.replaceFirst('#', '0xFF')));
     bool isSent = it.paymentId != null && it.paymentId! > 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: isDataMissing 
-            ? Border.all(color: Colors.red.shade400, width: 1.5) 
-            : Border.all(color: Colors.transparent, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          )
-        ],
+        color: Colors.white, borderRadius: BorderRadius.circular(15),
+        border: isDataMissing ? Border.all(color: Colors.red.shade400, width: 1.5) : Border.all(color: Colors.transparent, width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: () async {
-          if (!context.mounted) return;
-          final up = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => BillDetailPage(item: it, isAdmin: true),
-            ),
-          );
+          final up = await Navigator.push(context, MaterialPageRoute(builder: (_) => BillDetailPage(item: it, isAdmin: true)));
           if (up == true) fetchBills();
         },
         child: Padding(
@@ -466,45 +307,15 @@ class _BillAdminPageState extends State<BillAdminPage> {
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isDataMissing ? Colors.red.shade50 : sColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      isNoTenant ? Icons.door_front_door_outlined : Icons.meeting_room_rounded,
-                      color: isDataMissing ? Colors.red : sColor,
-                      size: 24,
-                    ),
-                  ),
+                  Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: isDataMissing ? Colors.red.shade50 : sColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.meeting_room_rounded, color: isDataMissing ? Colors.red : sColor, size: 24)),
                   const SizedBox(width: 15),
-                  Expanded(
-                    child: Text(
-                      "ห้อง ${it.roomNumber}",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: fHeader, color: cTextMain),
-                    ),
-                  ),
+                  Expanded(child: Text("ห้อง ${it.roomNumber}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: fHeader, color: cTextMain))),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        isNoTenant ? "- ฿" : "${it.calculatedTotal.toStringAsFixed(0)} ฿",
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: fBody, color: cTextMain),
-                      ),
+                      Text("${it.calculatedTotal.toStringAsFixed(0)} ฿", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: fBody, color: cTextMain)),
                       const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: sColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: sColor.withOpacity(0.2)),
-                        ),
-                        child: Text(
-                          it.statusLabel,
-                          style: TextStyle(color: sColor, fontSize: fCaption, fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: sColor.withOpacity(0.2))), child: Text(it.statusLabel, style: TextStyle(color: sColor, fontSize: fCaption, fontWeight: FontWeight.bold))),
                     ],
                   ),
                 ],
@@ -512,19 +323,9 @@ class _BillAdminPageState extends State<BillAdminPage> {
               const Divider(height: 20, thickness: 0.5),
               Row(
                 children: [
-                  _badge(
-                    isSent ? "ส่งบิลแล้ว" : "ยังไม่ส่งบิล",
-                    isSent ? const Color(0xFF1976D2) : const Color(0xFFF57C00),
-                    isSent ? Icons.send : Icons.hourglass_empty,
-                  ),
-                  if (isDataMissing) ...[
-                    const SizedBox(width: 8),
-                    _badge("ข้อมูลไม่ครบ", Colors.red.shade700, Icons.priority_high_rounded),
-                  ],
-                  if (it.slipImage != null && it.slipImage!.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    _badge("แจ้งชำระแล้ว", const Color(0xFF388E3C), Icons.check_circle_outline)
-                  ],
+                  _badge(isSent ? "ส่งบิลแล้ว" : "ยังไม่ส่งบิล", isSent ? const Color(0xFF1976D2) : const Color(0xFFF57C00), isSent ? Icons.send : Icons.hourglass_empty),
+                  if (isDataMissing) ...[const SizedBox(width: 8), _badge("ข้อมูลไม่ครบ", Colors.red.shade700, Icons.priority_high_rounded)],
+                  if (it.slipImage != null && it.slipImage!.isNotEmpty) ...[const SizedBox(width: 8), _badge("แจ้งชำระแล้ว", const Color(0xFF388E3C), Icons.check_circle_outline)],
                   const Spacer(),
                   const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
                 ],
@@ -536,106 +337,53 @@ class _BillAdminPageState extends State<BillAdminPage> {
     );
   }
 
-  Color _statusChipColor(String key) {
-    switch (key) {
-      case "all": return const Color(0xFF6B4E3D);
-      case "paid": return const Color(0xFF6DAE74);
-      case "unpaid": return const Color(0xFFE57C7C);
-      case "no_tenant": return const Color(0xFFB9C9B8);
-      default: return Colors.grey;
-    }
-  }
-
-  Color _statusChipBg(String key) {
-    switch (key) {
-      case "all": return const Color(0xFFF3ECE7);
-      case "paid": return const Color(0xFFF6FBF7);
-      case "unpaid": return const Color(0xFFFFF6F6);
-      case "no_tenant": return const Color(0xFFF7FAF7);
-      default: return Colors.white;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    // กรองเฉพาะห้องที่มีผู้เช่า (tenantId ไม่เป็น null)
     final filteredItems = items.where((it) {
       bool bOk = selectedBuilding == "ทั้งหมด" || it.building == selectedBuilding;
       bool fOk = selectedFloor == "ทั้งหมด" || it.floor.toString() == selectedFloor;
-      return bOk && fOk;
+      bool hasTenant = it.tenantId != null && it.statusKey != "no_tenant";
+      return bOk && fOk && hasTenant;
     }).toList();
 
     Map<String, List<BillItem>> groupedByBuilding = {};
-    for (var item in filteredItems) {
-      groupedByBuilding.putIfAbsent(item.building, () => []).add(item);
-    }
+    for (var item in filteredItems) { groupedByBuilding.putIfAbsent(item.building, () => []).add(item); }
     var sortedBuildings = groupedByBuilding.keys.toList()..sort();
 
     return Scaffold(
       backgroundColor: cBg,
       appBar: AppBar(
-        toolbarHeight: 50,
-        elevation: 0.5,
-        backgroundColor: Colors.white,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          "จัดการบิล",
-          style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.send_rounded, color: cIcon, size: 22),
-            onPressed: bulkSendBills,
-          )
-        ],
+        toolbarHeight: 50, elevation: 0.5, backgroundColor: Colors.white, centerTitle: true, automaticallyImplyLeading: false,
+        title: const Text("จัดการบิล", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader)),
+        actions: [IconButton(icon: const Icon(Icons.send_rounded, color: cIcon, size: 22), onPressed: bulkSendBills)],
       ),
       body: RefreshIndicator(
-        onRefresh: fetchBills,
-        color: cTextMain,
+        onRefresh: fetchBills, color: cTextMain,
         child: CustomScrollView(
           slivers: [
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  _buildClassicFilters(),
-                  _buildStatusScroll(),
-                ],
-              ),
-            ),
-            if (loading)
-              const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: cTextMain, strokeWidth: 2)))
-            else if (filteredItems.isEmpty)
-              const SliverFillRemaining(child: Center(child: Text("ไม่มีข้อมูล", style: TextStyle(fontSize: fBody, color: cTextMain, fontWeight: FontWeight.bold))))
+            SliverToBoxAdapter(child: Column(children: [_buildClassicFilters(), _buildStatusScroll()])),
+            if (loading) const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: cTextMain, strokeWidth: 2)))
+            else if (filteredItems.isEmpty) const SliverFillRemaining(child: Center(child: Text("ไม่มีข้อมูลผู้เช่า", style: TextStyle(fontSize: fBody, color: cTextMain, fontWeight: FontWeight.bold))))
             else
               for (var bName in sortedBuildings) ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.business_rounded, size: 18, color: cIcon),
-                        const SizedBox(width: 8),
-                        Text("ตึก $bName", style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.bold, color: cTextMain)),
-                        const SizedBox(width: 8),
-                        Expanded(child: Divider(thickness: 1, color: cTextMain.withOpacity(0.1))),
-                        const SizedBox(width: 8),
-                        Text("${groupedByBuilding[bName]!.length} ห้อง", style: const TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
+                    child: Row(children: [
+                      const Icon(Icons.business_rounded, size: 18, color: cIcon),
+                      const SizedBox(width: 8),
+                      Text("ตึก $bName", style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.bold, color: cTextMain)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Divider(thickness: 1, color: cTextMain.withOpacity(0.1))),
+                      const SizedBox(width: 8),
+                      Text("${groupedByBuilding[bName]!.length} ห้อง", style: const TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.bold)),
+                    ]),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildModernBillCard(groupedByBuilding[bName]![index]),
-                      childCount: groupedByBuilding[bName]!.length,
-                    ),
-                  ),
-                ),
+                SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 16), sliver: SliverList(delegate: SliverChildBuilderDelegate((context, index) => _buildModernBillCard(groupedByBuilding[bName]![index]), childCount: groupedByBuilding[bName]!.length))),
               ],
-            
-            const SliverToBoxAdapter(child: SizedBox(height: 120)), 
+            const SliverToBoxAdapter(child: SizedBox(height: 120)),
           ],
         ),
       ),
@@ -644,129 +392,45 @@ class _BillAdminPageState extends State<BillAdminPage> {
 
   Widget _buildClassicFilters() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _dropClassic(
-                label: "เดือน",
-                val: selectedMonth,
-                items: monthOptions.map((m) => DropdownMenuItem(value: m["value"] as int, child: Text(_getMonthFull(m["value"] as int), style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(),
-                on: (v) { setState(() => selectedMonth = v!); fetchBills(); },
-              ),
-              const SizedBox(width: 8),
-              _dropClassic(
-                label: "ปี",
-                val: selectedYear,
-                items: yearOptions.map((y) => DropdownMenuItem(value: y, child: Text((y + 543).toString(), style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(),
-                on: (v) { setState(() => selectedYear = v!); fetchBills(); },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _dropClassic(
-                label: "ตึก",
-                val: selectedBuilding,
-                items: buildingOptions.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(),
-                on: (v) => setState(() => selectedBuilding = v!),
-              ),
-              const SizedBox(width: 8),
-              _dropClassic(
-                label: "ชั้น",
-                val: selectedFloor,
-                items: floorOptions.map((f) => DropdownMenuItem(value: f, child: Text(f, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(),
-                on: (v) => setState(() => selectedFloor = v!),
-              ),
-            ],
-          ),
-        ],
-      ),
+      color: Colors.white, padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(children: [
+        Row(children: [
+          _dropClassic(label: "เดือน", val: selectedMonth, items: monthOptions.map((m) => DropdownMenuItem(value: m["value"] as int, child: Text(_getMonthFull(m["value"] as int), style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(), on: (v) { setState(() => selectedMonth = v!); fetchBills(); }),
+          const SizedBox(width: 8),
+          _dropClassic(label: "ปี", val: selectedYear, items: yearOptions.map((y) => DropdownMenuItem(value: y, child: Text((y + 543).toString(), style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(), on: (v) { setState(() => selectedYear = v!); fetchBills(); }),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          _dropClassic(label: "ตึก", val: selectedBuilding, items: buildingOptions.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(), on: (v) => setState(() => selectedBuilding = v!)),
+          const SizedBox(width: 8),
+          _dropClassic(label: "ชั้น", val: selectedFloor, items: floorOptions.map((f) => DropdownMenuItem(value: f, child: Text(f, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold)))).toList(), on: (v) => setState(() => selectedFloor = v!)),
+        ]),
+      ]),
     );
   }
 
   Widget _dropClassic<T>({required String label, required T val, required List<DropdownMenuItem<T>> items, required ValueChanged<T?> on}) {
-    return Expanded(
-      child: SizedBox(
-        height: 50,
-        child: DropdownButtonFormField<T>(
-          isExpanded: true,
-          value: val,
-          items: items,
-          onChanged: on,
-          style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold, color: cTextMain),
-          decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            isDense: true,
-            labelText: label,
-            labelStyle: const TextStyle(color: cIcon, fontSize: fDetail, fontWeight: FontWeight.bold),
-            filled: true,
-            fillColor: cBg,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          ),
-        ),
-      ),
-    );
+    return Expanded(child: SizedBox(height: 50, child: DropdownButtonFormField<T>(isExpanded: true, value: val, items: items, onChanged: on, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold, color: cTextMain), decoration: InputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true, labelText: label, labelStyle: const TextStyle(color: cIcon, fontSize: fDetail, fontWeight: FontWeight.bold), filled: true, fillColor: cBg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))));
   }
 
   Widget _buildStatusScroll() {
     return Container(
-      width: double.infinity,
-      color: Colors.white,
-      padding: const EdgeInsets.only(bottom: 12, top: 2),
-      child: Center(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _statusChip("all", "ทั้งหมด"),
-                _statusChip("paid", "ชำระแล้ว"),
-                _statusChip("unpaid", "ค้างชำระ"),
-                _statusChip("no_tenant", "ห้องว่าง"),
-              ],
-            ),
-          ),
-        ),
-      ),
+      width: double.infinity, color: Colors.white, padding: const EdgeInsets.only(bottom: 12, top: 2),
+      child: Center(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [_statusChip("all", "ทั้งหมด"), _statusChip("paid", "ชำระแล้ว"), _statusChip("unpaid", "ค้างชำระ")])))),
     );
   }
 
   Widget _statusChip(String key, String label) {
     final bool sel = selectedStatusKey == key;
-    final Color color = _statusChipColor(key);
+    final Color color = (key == "paid") ? const Color(0xFF6DAE74) : (key == "unpaid") ? const Color(0xFFE57C7C) : const Color(0xFF6B4E3D);
+    final Color bg = (key == "paid") ? const Color(0xFFF6FBF7) : (key == "unpaid") ? const Color(0xFFFFF6F6) : const Color(0xFFF3ECE7);
     return GestureDetector(
       onTap: () { if (selectedStatusKey != key) { setState(() => selectedStatusKey = key); fetchBills(); } },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-        decoration: BoxDecoration(
-          color: sel ? color : _statusChipBg(key),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: sel ? color : color.withOpacity(0.45), width: 1.15),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (sel) ...[const Icon(Icons.check_circle, size: 15, color: Colors.white), const SizedBox(width: 6)],
-            Text(label, style: TextStyle(color: sel ? Colors.white : color, fontWeight: FontWeight.bold, fontSize: fDetail)),
-          ],
-        ),
-      ),
+      child: AnimatedContainer(duration: const Duration(milliseconds: 200), margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4), padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: sel ? color : bg, borderRadius: BorderRadius.circular(20), border: Border.all(color: sel ? color : color.withOpacity(0.45), width: 1.15)), child: Row(mainAxisSize: MainAxisSize.min, children: [if (sel) ...[const Icon(Icons.check_circle, size: 15, color: Colors.white), const SizedBox(width: 6)], Text(label, style: TextStyle(color: sel ? Colors.white : color, fontWeight: FontWeight.bold, fontSize: fDetail))])),
     );
   }
 
   Widget _badge(String t, Color c, IconData i) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: c.withOpacity(0.2))),
-      child: Row(children: [Icon(i, size: 12, color: c), const SizedBox(width: 4), Text(t, style: TextStyle(color: c, fontSize: fCaption, fontWeight: FontWeight.bold))]),
-    );
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: c.withOpacity(0.2))), child: Row(children: [Icon(i, size: 12, color: c), const SizedBox(width: 4), Text(t, style: TextStyle(color: c, fontSize: fCaption, fontWeight: FontWeight.bold))]));
   }
 }

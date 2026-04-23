@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:docman/docman.dart'; 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,17 +14,15 @@ const double fBody = 15.0;
 const double fDetail = 13.0;
 const double fCaption = 11.0;
 
-// 🎨 ปรับให้ตรงโทนหน้าผู้ดูแลหอพัก
 const Color cBg = Color(0xFFF4EFE6);
 const Color cTextMain = Color(0xFF2A1F17);
 const Color cDark = Color(0xFF523D2D);
 const Color cAccent = Color(0xFFD7CCC8);
 
-// ✅ แก้ไขเฉพาะประเภทให้ตรงตาม rh_repair_types (ไฟฟ้า=1, น้ำ=2, เครื่องใช้=3, อื่นๆ=4)
 const List<Map<String, dynamic>> kRepairTypeOptions = [
   {"id": 1, "name": "ไฟฟ้า", "icon": Icons.bolt_rounded},
   {"id": 2, "name": "น้ำ", "icon": Icons.water_drop_rounded},
-  {"id": 3, "name": "เครื่องใช้", "icon": Icons.ac_unit_rounded}, // ใช้ icon เดิมจากแอร์
+  {"id": 3, "name": "เครื่องใช้", "icon": Icons.ac_unit_rounded}, 
   {"id": 4, "name": "อื่นๆ", "icon": Icons.construction_rounded},
 ];
 
@@ -49,7 +48,7 @@ Color repairTypeColor(String type) {
     case "น้ำ":
       return const Color(0xFF0288D1);
     case "เครื่องใช้":
-      return const Color(0xFF009688); // สีเดิมของแอร์
+      return const Color(0xFF009688); 
     case "อื่นๆ":
       return const Color(0xFF455A64);
     default:
@@ -64,7 +63,7 @@ IconData repairTypeIcon(String type) {
     case "น้ำ":
       return Icons.water_drop_rounded;
     case "เครื่องใช้":
-      return Icons.ac_unit_rounded; // icon เดิมของแอร์
+      return Icons.ac_unit_rounded; 
     default:
       return Icons.construction_rounded;
   }
@@ -137,6 +136,129 @@ class _RepairPageState extends State<RepairPage> {
       _userId = prefs.getInt("user_id") ?? 0;
       _dormId = prefs.getInt("dorm_id") ?? 0;
     });
+  }
+
+  Future<void> _pickImageFromDevice() async {
+    try {
+      final files = await DocMan.pick.visualMedia(
+        mimeTypes: const ['image/*'],
+        extensions: const ['jpg', 'jpeg', 'png', 'webp'],
+        localOnly: true,
+        useVisualMediaPicker: true,
+        limit: 1,
+        imageQuality: 80,
+      );
+
+      if (files.isNotEmpty) {
+        setState(() => _image = files.first);
+      }
+    } catch (e) {
+      debugPrint('pick gallery image error: $e');
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1000,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        setState(() => _image = File(image.path));
+      }
+    } catch (e) {
+      debugPrint('pick camera image error: $e');
+    }
+  }
+
+  Future<void> _showImageSourcePicker() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "เลือกรูปภาพ",
+                  style: TextStyle(
+                    fontSize: fHeader,
+                    fontWeight: FontWeight.bold,
+                    color: cTextMain,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _sourceButton(
+                        icon: Icons.photo_library_rounded,
+                        label: "รูปในเครื่อง",
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _pickImageFromDevice();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _sourceButton(
+                        icon: Icons.camera_alt_rounded,
+                        label: "กล้อง",
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _pickImageFromCamera();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sourceButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: cBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cAccent),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 30, color: cDark),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: fBody,
+                fontWeight: FontWeight.normal,
+                color: cTextMain,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _handleSubmit() async {
@@ -218,7 +340,7 @@ class _RepairPageState extends State<RepairPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: cBg,
-      appBar: AppBar(
+   appBar: AppBar(
         toolbarHeight: 55,
         backgroundColor: Colors.white,
         elevation: 0.5,
@@ -232,25 +354,36 @@ class _RepairPageState extends State<RepairPage> {
           ),
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RepairHistoryPage()),
-            ),
-            icon: const Icon(Icons.history_rounded, color: cTextMain, size: 18),
-            label: const Text(
-              "ประวัติ",
-              style: TextStyle(
-                color: cTextMain,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
+          // ✅ แก้ไข: เอาไอคอนออก และใส่ Padding/Border แทน
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
+            child: OutlinedButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RepairHistoryPage()),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: cAccent, width: 1.2), // สีขอบตามธีม
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12), // ความโค้งของกรอบ
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              child: const Text(
+                "ประวัติการซ่อม",
+                style: TextStyle(
+                  color: cTextMain,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
-          )
+          ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        // ✅ แก้ไข: เพิ่ม Padding ด้านล่าง 120 เพื่อดันเนื้อหาขึ้นมาให้พ้นเมนูหลัก
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         child: Form(
           key: _formKey,
           child: Column(
@@ -281,6 +414,8 @@ class _RepairPageState extends State<RepairPage> {
                         ),
                 ),
               ),
+              // ✅ แถม: เพิ่มช่องว่างหลอกท้ายสุดเพื่อให้ User สามารถเลื่อนขึ้นได้สุดจริงๆ
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -417,13 +552,7 @@ class _RepairPageState extends State<RepairPage> {
     return GestureDetector(
       onTap: _image != null
           ? null
-          : () async {
-              final XFile? p =
-                  await _picker.pickImage(source: ImageSource.gallery);
-              if (p != null) {
-                setState(() => _image = File(p.path));
-              }
-            },
+          : _showImageSourcePicker,
       child: Container(
         height: 160,
         width: double.infinity,
@@ -439,11 +568,20 @@ class _RepairPageState extends State<RepairPage> {
                   Icon(Icons.add_a_photo_rounded, color: cDark, size: 42),
                   SizedBox(height: 10),
                   Text(
-                    "เพิ่มรูปภาพ",
+                    "แตะเพื่อเลือกรูป",
                     style: TextStyle(
                       color: cTextMain,
                       fontSize: fDetail,
                       fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    "เลือกได้จากรูปในเครื่องหรือกล้อง",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.normal,
+                      fontSize: fCaption,
                     ),
                   ),
                 ],
@@ -559,7 +697,8 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
       body: loading
           ? const Center(child: CircularProgressIndicator(color: cDark))
           : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(14, 15, 14, 100),
+              // ✅ แก้ไข: เพิ่ม Padding ด้านล่างให้ ListView พ้นเมนูหลัก
+              padding: const EdgeInsets.fromLTRB(14, 15, 14, 120),
               itemCount: items.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (_, i) {
@@ -574,7 +713,6 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
                         ? const Color(0xFFEF6C00)
                         : const Color(0xFF2E7D32);
 
-                // ✅ นำข้อความรายละเอียดที่ผู้ใช้พิมพ์มาแสดงเป็นหัวข้อ และตัดให้เหลือ 20 ตัวอักษร
                 String rawDetail = (it["detail"] ?? "").toString();
                 String titleDisplay = (rawDetail.length > 20) 
                     ? "${rawDetail.substring(0, 20)}..." 
@@ -582,7 +720,7 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
 
                 return _RepairCardNoStatus(
                   statusColor: sColor,
-                  title: titleDisplay, // ✅ แสดงรายละเอียดที่ตัดแล้ว
+                  title: titleDisplay, 
                   typeText: repairType,
                   createdText: _prettyThaiDate(it["created_at"] ?? "-"),
                   imageUrl: firstImg,
@@ -730,6 +868,134 @@ class _EditRepairPageState extends State<EditRepairPage> {
           ),
         ) ??
         false;
+  }
+
+  Future<void> _pickImageFromDevice() async {
+    try {
+      final files = await DocMan.pick.visualMedia(
+        mimeTypes: const ['image/*'],
+        extensions: const ['jpg', 'jpeg', 'png', 'webp'],
+        localOnly: true,
+        useVisualMediaPicker: true,
+        limit: 1,
+        imageQuality: 80,
+      );
+      if (files.isNotEmpty) {
+        setState(() {
+          _newImage = files.first;
+          _isImageDeleted = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('pick gallery image error: $e');
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1000,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        setState(() {
+          _newImage = File(image.path);
+          _isImageDeleted = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('pick camera image error: $e');
+    }
+  }
+
+  Future<void> _showImageSourcePicker() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "เลือกรูปภาพ",
+                  style: TextStyle(
+                    fontSize: fHeader,
+                    fontWeight: FontWeight.bold,
+                    color: cTextMain,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _sourceButton(
+                        icon: Icons.photo_library_rounded,
+                        label: "รูปในเครื่อง",
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _pickImageFromDevice();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _sourceButton(
+                        icon: Icons.camera_alt_rounded,
+                        label: "กล้อง",
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _pickImageFromCamera();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sourceButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: cBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cAccent),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 30, color: cDark),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: fBody,
+                fontWeight: FontWeight.normal,
+                color: cTextMain,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildTypeBadgeSmall(String type) {
@@ -883,7 +1149,8 @@ class _EditRepairPageState extends State<EditRepairPage> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        // ✅ แก้ไข: สำหรับหน้า Edit ก็นำปุ่มเข้าไปอยู่ใน scroll เหมือนกันเพื่อกันโดนบัง
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         child: Column(
           children: [
             _buildStatusTimeline(widget.item['status'] ?? "pending"),
@@ -1095,6 +1362,7 @@ class _EditRepairPageState extends State<EditRepairPage> {
                         ),
                 ),
               ),
+              const SizedBox(height: 40),
           ],
         ),
       ),
@@ -1110,16 +1378,7 @@ class _EditRepairPageState extends State<EditRepairPage> {
     return GestureDetector(
       onTap: !canEdit
           ? null
-          : () async {
-              final XFile? p =
-                  await _picker.pickImage(source: ImageSource.gallery);
-              if (p != null) {
-                setState(() {
-                  _newImage = File(p.path);
-                  _isImageDeleted = false;
-                });
-              }
-            },
+          : _showImageSourcePicker,
       child: Container(
         height: 200,
         width: double.infinity,

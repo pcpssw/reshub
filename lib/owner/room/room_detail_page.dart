@@ -21,7 +21,6 @@ class RoomDetailPage extends StatefulWidget {
 
 class _RoomDetailPageState extends State<RoomDetailPage> {
   static const Color cBg = Color(0xFFF4EFE6);
-  static const Color cAccent = Color(0xFFDCD2C1);
   static const Color cIcon = Color(0xFF523D2D);
   static const Color cTextMain = Color(0xFF2A1F17);
   static const Color cSoft = Color(0xFFEEE6DA);
@@ -36,43 +35,17 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
   late TextEditingController rentController;
   late RoomType type;
   late RoomStatus status;
-  late int rent;
-
-  bool isEdit = false;
+  
   bool saving = false;
   late Room _room;
-
-  int defaultRentFan = 0;
-  int defaultRentAir = 0;
 
   @override
   void initState() {
     super.initState();
     _room = widget.room;
-    rent = _room.rent;
-    rentController = TextEditingController(text: rent.toString());
+    rentController = TextEditingController(text: _room.rent.toString());
     type = _room.type;
     status = _room.status;
-    _fetchDefaultPrices();
-  }
-
-  Future<void> _fetchDefaultPrices() async {
-    try {
-      final res = await http.get(
-        Uri.parse(
-          "${AppConfig.url("rooms_api.php")}?action=defaults&dorm_id=${widget.dormId}",
-        ),
-      );
-      final data = jsonDecode(res.body);
-      if (data["ok"] == true && mounted) {
-        setState(() {
-          defaultRentFan = (data["settings"]?["default_rent_fan"] ?? 0).toInt();
-          defaultRentAir = (data["settings"]?["default_rent_air"] ?? 0).toInt();
-        });
-      }
-    } catch (e) {
-      debugPrint("Fetch Default Price Error: $e");
-    }
   }
 
   @override
@@ -81,111 +54,22 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
     super.dispose();
   }
 
-  Future<bool?> _showCustomConfirmDialog({
-    required String title,
-    required String message,
-    required IconData icon,
-    required Color iconColor,
-    String confirmText = "ยืนยัน",
-    Color? confirmBtnColor,
-  }) {
-    return showDialog<bool>(
+  Future<void> _deleteRoom() async {
+    final bool? confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 40, color: iconColor),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: fHeader,
-                  fontWeight: FontWeight.w900,
-                  color: cTextMain,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                message,
-                style: const TextStyle(
-                  fontSize: fBody,
-                  color: Colors.black54,
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: confirmBtnColor ?? cIcon,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text(
-                        confirmText,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: cBorder),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text(
-                        "ยกเลิก",
-                        style: TextStyle(
-                          color: cTextMain,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: const Text("ยืนยันการลบ", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text("คุณแน่ใจใช่ไหมที่จะลบห้อง ${_room.roomNo}?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("ยกเลิก")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("ลบ", style: TextStyle(color: Colors.red)),
           ),
-        ),
+        ],
       ),
     );
-  }
 
-  Future<void> _deleteRoom() async {
-    final bool? confirm = await _showCustomConfirmDialog(
-      title: "ลบห้องพัก",
-      message: "คุณแน่ใจใช่ไหมที่จะลบห้อง ${_room.roomNo}?\nข้อมูลจะหายไปอย่างถาวร",
-      icon: Icons.delete_forever_rounded,
-      iconColor: cDanger,
-      confirmText: "ลบห้องพัก",
-      confirmBtnColor: cDanger,
-    );
     if (confirm != true) return;
 
     setState(() => saving = true);
@@ -199,22 +83,15 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
         },
       );
       final data = jsonDecode(res.body);
-      if (data["ok"] == true && mounted) {
-        Navigator.pop(context, true);
-      }
+      if (data["ok"] == true && mounted) Navigator.pop(context, true);
     } catch (_) {
     } finally {
       if (mounted) setState(() => saving = false);
     }
   }
 
-  Future<void> _toggleEditSave() async {
+  Future<void> _saveChanges() async {
     if (saving) return;
-    if (!isEdit) {
-      setState(() => isEdit = true);
-      return;
-    }
-
     final newRent = int.tryParse(rentController.text.trim());
     if (newRent == null || newRent <= 0) return;
 
@@ -232,9 +109,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
         },
       );
       final data = jsonDecode(res.body);
-      if (data["ok"] == true && mounted) {
-        Navigator.pop(context, true);
-      }
+      if (data["ok"] == true && mounted) Navigator.pop(context, true);
     } catch (_) {
     } finally {
       if (mounted) setState(() => saving = false);
@@ -251,52 +126,17 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
         backgroundColor: Colors.white,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: cTextMain,
-            size: 20,
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new, color: cTextMain, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "ห้อง ${_room.roomNo}",
+          "รายละเอียดห้อง ${_room.roomNo}",
           style: const TextStyle(
             color: cTextMain,
             fontWeight: FontWeight.w900,
             fontSize: fHeader,
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton.icon(
-              onPressed: saving ? null : _toggleEditSave,
-              icon: saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: cIcon,
-                      ),
-                    )
-                  : Icon(
-                      isEdit
-                          ? Icons.check_circle_rounded
-                          : Icons.edit_note_rounded,
-                      color: cIcon,
-                    ),
-              label: Text(
-                isEdit ? "บันทึก" : "แก้ไข",
-                style: const TextStyle(
-                  color: cIcon,
-                  fontWeight: FontWeight.bold,
-                  fontSize: fBody,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -304,7 +144,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _buildPriceHeader(),
+                _buildPriceInput(),
                 const SizedBox(height: 24),
                 _buildSectionTitle("ข้อมูลห้องพัก"),
                 _buildInfoCard(),
@@ -314,143 +154,101 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
               ],
             ),
           ),
-          if (isEdit)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: saving ? null : _deleteRoom,
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: cIcon,
-                  ),
-                  label: const Text(
-                    "ลบห้องพักนี้ออกจากระบบ",
-                    style: TextStyle(
-                      color: cTextMain,
-                      fontWeight: FontWeight.bold,
-                      fontSize: fBody,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(color: cBorder, width: 1.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    backgroundColor: cSoft,
-                  ),
-                ),
-              ),
-            ),
+          _buildBottomActions(),
         ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 10),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: cTextMain,
-          fontWeight: FontWeight.w800,
-          fontSize: fHeader,
-        ),
+  Widget _buildBottomActions() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 55,
+              child: OutlinedButton(
+                onPressed: saving ? null : _deleteRoom,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: cDanger, width: 1.2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text(
+                  "ลบห้อง",
+                  style: TextStyle(color: cDanger, fontWeight: FontWeight.bold, fontSize: fBody),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 55,
+              child: ElevatedButton(
+                onPressed: saving ? null : _saveChanges,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: cIcon,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: saving
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text(
+                        "บันทึกข้อมูล",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: fBody),
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildPriceHeader() {
+  Widget _buildPriceInput() {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12)],
       ),
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: const [
-                  Icon(
-                    Icons.payments_rounded,
-                    size: 20,
-                    color: cIcon,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    "ค่าเช่าต่อเดือน",
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: fDetail,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              if (!isEdit) _statusBadge(status),
+            children: const [
+              Icon(Icons.payments_rounded, size: 20, color: cIcon),
+              SizedBox(width: 12),
+              Text("ค่าเช่าต่อเดือน", style: TextStyle(fontWeight: FontWeight.w600, fontSize: fDetail)),
             ],
           ),
-          const SizedBox(height: 20),
-          if (isEdit)
-            TextField(
-              controller: rentController,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: cTextMain,
-              ),
-              decoration: InputDecoration(
-                suffixText: "บาท",
-                suffixStyle: const TextStyle(fontSize: fBody),
-                filled: true,
-                fillColor: cBg.withOpacity(0.6),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  "$rent",
-                  style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                    color: cTextMain,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  "บาท / เดือน",
-                  style: TextStyle(
-                    fontSize: fDetail,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 16),
+          TextField(
+            controller: rentController,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            // ลดขนาดตัวเลขลงเหลือ 22 ให้ดูพอดี
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: cTextMain),
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              suffixText: "บาท",
+              filled: true,
+              fillColor: cBg.withOpacity(0.6),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
             ),
+          ),
         ],
       ),
     );
@@ -462,250 +260,82 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _rowInfo("อาคาร", _room.building, Icons.business),
-          const Divider(height: 24, color: cBg, thickness: 1),
+          _rowInfoStatic("อาคาร", _room.building, Icons.business),
+          const Divider(height: 24, color: cBg),
           Row(
             children: [
-              Expanded(
-                child: _rowInfoSmall(
-                  "ชั้น",
-                  "${_room.floor}",
-                  Icons.layers,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 30,
-                color: cAccent.withOpacity(0.5),
-                margin: const EdgeInsets.symmetric(horizontal: 10),
-              ),
-              Expanded(
-                child: _rowInfoSmall(
-                  "เลขห้อง",
-                  _room.roomNo,
-                  Icons.tag,
-                ),
-              ),
+              Expanded(child: _rowInfoStatic("ชั้น", "${_room.floor}", Icons.layers)),
+              const SizedBox(width: 1, height: 30, child: VerticalDivider(color: cBorder)),
+              Expanded(child: _rowInfoStatic("เลขห้อง", _room.roomNo, Icons.tag)),
             ],
           ),
           const Divider(height: 32, color: cBg, thickness: 2),
-          if (isEdit)
-            _buildNewEditSelectors()
-          else ...[
-            _rowInfo(
-              "ประเภท",
-              type.label,
-              type == RoomType.air ? Icons.ac_unit : Icons.wind_power,
-            ),
-            _rowInfo(
-              "สถานะห้อง",
-              _getStatusLabel(status),
-              Icons.info_outline,
-              valueColor: cTextMain,
-            ),
-          ],
+          const Text("ประเภทห้องพัก", style: TextStyle(fontWeight: FontWeight.w800, fontSize: fBody)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _typeBtn(RoomType.air, "แอร์", Icons.ac_unit)),
+              const SizedBox(width: 12),
+              Expanded(child: _typeBtn(RoomType.fan, "พัดลม", Icons.wind_power)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Text("สถานะห้องพัก", style: TextStyle(fontWeight: FontWeight.w800, fontSize: fBody)),
+          const SizedBox(height: 12),
+          _statusBtn(RoomStatus.available, "ว่าง", Icons.check_circle_outline),
+          const SizedBox(height: 8),
+          _statusBtn(RoomStatus.occupied, "ไม่ว่าง", Icons.person_off_outlined),
+          const SizedBox(height: 8),
+          _statusBtn(RoomStatus.maintenance, "ซ่อม", Icons.build_circle_outlined),
         ],
       ),
     );
   }
 
-  Widget _rowInfoSmall(String label, String value, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: const BoxDecoration(
-            color: cSoft,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 16, color: cIcon),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.black54,
-                fontSize: fCaption,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: fHeader,
-                fontWeight: FontWeight.w900,
-                color: cTextMain,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNewEditSelectors() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "ประเภทห้องพัก",
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: fBody,
-            color: cTextMain,
-          ),
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _typeButton(
-                isSelected: type == RoomType.air,
-                label: "แอร์",
-                icon: Icons.ac_unit_rounded,
-                onTap: () => setState(() => type = RoomType.air),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _typeButton(
-                isSelected: type == RoomType.fan,
-                label: "พัดลม",
-                icon: Icons.wind_power_rounded,
-                onTap: () => setState(() => type = RoomType.fan),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          "สถานะห้องพัก",
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: fBody,
-            color: cTextMain,
-          ),
-        ),
-        const SizedBox(height: 14),
-        _statusButton(
-          isSelected: status == RoomStatus.available,
-          label: "ว่าง",
-          icon: Icons.check_circle_outline,
-          onTap: () => setState(() => status = RoomStatus.available),
-        ),
-        const SizedBox(height: 10),
-        _statusButton(
-          isSelected: status == RoomStatus.occupied,
-          label: "ไม่ว่าง",
-          icon: Icons.person_off_outlined,
-          onTap: () => setState(() => status = RoomStatus.occupied),
-        ),
-        const SizedBox(height: 10),
-        _statusButton(
-          isSelected: status == RoomStatus.maintenance,
-          label: "ซ่อม",
-          icon: Icons.build_circle_outlined,
-          onTap: () => setState(() => status = RoomStatus.maintenance),
-        ),
-      ],
-    );
-  }
-
-  Widget _typeButton({
-    required bool isSelected,
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget _typeBtn(RoomType t, String label, IconData icon) {
+    bool isSel = type == t;
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 16),
+      onTap: () => setState(() => type = t),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? cIcon : Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: isSelected ? cIcon : cBorder,
-            width: 1.5,
-          ),
+          color: isSel ? cIcon : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSel ? cIcon : cBorder),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 28,
-              color: isSelected ? Colors.white : cIcon,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : cTextMain,
-                fontWeight: FontWeight.w800,
-                fontSize: fBody,
-              ),
-            ),
+            Icon(icon, color: isSel ? Colors.white : cIcon),
+            Text(label, style: TextStyle(color: isSel ? Colors.white : cTextMain, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
     );
   }
 
-  Widget _statusButton({
-    required bool isSelected,
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget _statusBtn(RoomStatus s, String label, IconData icon) {
+    bool isSel = status == s;
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      onTap: () => setState(() => status = s),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? cIcon : Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: isSelected ? cIcon : cBorder,
-            width: 1.5,
-          ),
+          color: isSel ? cIcon : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSel ? cIcon : cBorder),
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? Colors.white : cIcon,
-            ),
-            const SizedBox(width: 14),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : cTextMain,
-                fontWeight: FontWeight.w800,
-                fontSize: fBody,
-              ),
-            ),
+            Icon(icon, color: isSel ? Colors.white : cIcon, size: 20),
+            const SizedBox(width: 12),
+            Text(label, style: TextStyle(color: isSel ? Colors.white : cTextMain, fontWeight: FontWeight.bold)),
             const Spacer(),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
+            if (isSel) const Icon(Icons.check, color: Colors.white, size: 18),
           ],
         ),
       ),
@@ -713,109 +343,42 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
   }
 
   Widget _buildTenantCard(TenantInfo? tenant) {
-    if (tenant == null) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Center(
-          child: Text(
-            "ไม่มีข้อมูลผู้เช่า",
-            style: TextStyle(
-              color: Colors.black54,
-              fontWeight: FontWeight.w800,
-              fontSize: fBody,
-            ),
-          ),
-        ),
-      );
-    }
-
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
+      width: double.infinity,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+      child: tenant == null 
+        ? const Center(child: Text("ไม่มีข้อมูลผู้เช่า", style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)))
+        : Column(
+            children: [
+              _rowInfoStatic("ชื่อผู้เช่า", tenant.name ?? "-", Icons.person),
+              const SizedBox(height: 12),
+              _rowInfoStatic("เบอร์โทร", tenant.phone ?? "-", Icons.phone),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _rowInfo("ชื่อผู้เช่า", tenant.name ?? "-", Icons.person, isBold: true),
-          _rowInfo("เบอร์โทร", tenant.phone ?? "-", Icons.phone),
-          _rowInfo(
-            "สถานะ",
-            tenant.statusLabel,
-            Icons.assignment_ind,
-            valueColor: cTextMain,
-          ),
-        ],
-      ),
     );
   }
 
-  String _getStatusLabel(RoomStatus s) =>
-      s == RoomStatus.available
-          ? "ห้องว่าง"
-          : (s == RoomStatus.occupied ? "มีผู้เช่าแล้ว" : "ซ่อมแซมอยู่");
-
-  Widget _statusBadge(RoomStatus s) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: cSoft,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: cBorder),
-      ),
-      child: Text(
-        _getStatusLabel(s),
-        style: const TextStyle(
-          color: cTextMain,
-          fontSize: fCaption,
-          fontWeight: FontWeight.w900,
+  Widget _rowInfoStatic(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: cIcon),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: fCaption, color: Colors.black54)),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: fBody)),
+          ],
         ),
-      ),
+      ],
     );
   }
 
-  Widget _rowInfo(
-    String label,
-    String value,
-    IconData icon, {
-    Color? valueColor,
-    bool isBold = false,
-  }) {
+  Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: cIcon),
-          const SizedBox(width: 14),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: fDetail,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: fBody,
-              fontWeight: isBold ? FontWeight.w900 : FontWeight.w800,
-              color: valueColor ?? cTextMain,
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.only(left: 4, bottom: 10),
+      child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: fHeader)),
     );
   }
 }

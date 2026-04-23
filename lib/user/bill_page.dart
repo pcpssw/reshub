@@ -450,7 +450,7 @@ class _BillPageState extends State<BillPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
                           Icon(
-                            Icons.add_photo_alternate_rounded,
+                            Icons.add_a_photo_rounded,
                             color: _mutedColor,
                             size: 42,
                           ),
@@ -607,7 +607,7 @@ class _BillPageState extends State<BillPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.receipt_long_outlined,
+            Icons.add_a_photo_rounded,
             size: 80,
             color: _mutedColor.withOpacity(0.1),
           ),

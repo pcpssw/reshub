@@ -57,7 +57,7 @@ if ($prevMonth <= 0) {
 }
 
 # =====================================================
-# ✅ GET (สำคัญมาก — Flutter ใช้ตัวนี้โหลดหน้า)
+# ✅ GET
 # =====================================================
 if ($action === "get") {
     try {
@@ -117,7 +117,7 @@ if ($action === "get") {
 }
 
 # =====================================================
-# ✅ SAVE (ทับของเดิม)
+# ✅ SAVE (แก้บัคแล้ว)
 # =====================================================
 if ($action === "save") {
 
@@ -134,7 +134,7 @@ if ($action === "save") {
         ");
 
         $stCur = $conn->prepare("
-            SELECT reading_id
+            SELECT reading_id, water_new, elec_new
             FROM rh_meter
             WHERE dorm_id=? AND room_id=? AND month=? AND year=?
         ");
@@ -158,7 +158,7 @@ if ($action === "save") {
             $room_id = (int)($it['room_id'] ?? 0);
             if ($room_id <= 0) continue;
 
-            // เดือนก่อน
+            // 🔹 เดือนก่อน
             $stPrev->bind_param("iiii", $dorm_id, $room_id, $prevMonth, $prevYear);
             $stPrev->execute();
             $prev = $stPrev->get_result()->fetch_assoc();
@@ -166,19 +166,26 @@ if ($action === "save") {
             $prevW = $prev ? (int)$prev['water_new'] : 0;
             $prevE = $prev ? (int)$prev['elec_new'] : 0;
 
-            $newW = (int)($it['water_meter'] ?? $prevW);
-            $newE = (int)($it['electric_meter'] ?? $prevE);
-
-            if ($newW < $prevW) fail("น้ำย้อนหลังห้อง $room_id");
-            if ($newE < $prevE) fail("ไฟย้อนหลังห้อง $room_id");
-
-            // เดือนนี้
+            // 🔹 เดือนนี้ (สำคัญ)
             $stCur->bind_param("iiii", $dorm_id, $room_id, $month, $year);
             $stCur->execute();
             $cur = $stCur->get_result()->fetch_assoc();
 
+            // ✅ FIX: ใช้ค่าปัจจุบัน ถ้าไม่ได้ส่งมา
+            $newW = array_key_exists('water_meter', $it)
+                ? (int)$it['water_meter']
+                : ($cur ? (int)$cur['water_new'] : $prevW);
+
+            $newE = array_key_exists('electric_meter', $it)
+                ? (int)$it['electric_meter']
+                : ($cur ? (int)$cur['elec_new'] : $prevE);
+
+            // 🔥 กันเลขย้อน
+            if ($newW < $prevW) fail("น้ำย้อนหลังห้อง $room_id");
+            if ($newE < $prevE) fail("ไฟย้อนหลังห้อง $room_id");
+
             if ($cur) {
-                // 🔥 UPDATE (ทับ)
+                // 🔥 UPDATE
                 $reading_id = (int)$cur['reading_id'];
                 $stUpd->bind_param("iiiii", $prevW, $newW, $prevE, $newE, $reading_id);
                 $stUpd->execute();

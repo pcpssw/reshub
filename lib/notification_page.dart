@@ -22,7 +22,7 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
-  // 🎨 Palette สี: Vanilla Bean & Teddy Bear
+  // 🎨 Palette สี
   static const Color cVanilla  = Color(0xFFF4EFE6); 
   static const Color cTeddy    = Color(0xFF523D2D); 
   static const Color cBrown    = Color(0xFF8D7456); 
@@ -56,6 +56,127 @@ class _NotificationPageState extends State<NotificationPage> {
     _init();
   }
 
+  // --- 🎨 Improved Custom Dialogs (ตามขนาดที่คุณต้องการ) ---
+
+  void _showNotFoundDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFF3E0), 
+                  shape: BoxShape.circle
+                ),
+                child: const Icon(Icons.search_off_rounded, color: Colors.orange, size: 40),
+              ),
+              const SizedBox(height: 20),
+              const Text("ไม่พบข้อมูล", 
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: cTeddy)),
+              const SizedBox(height: 12),
+              Text(message, 
+                textAlign: TextAlign.center, 
+                style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.4)),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: cTeddy,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text("เข้าใจแล้ว", 
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteAllNotifications() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFEBEE), 
+                  shape: BoxShape.circle
+                ),
+                child: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 40),
+              ),
+              const SizedBox(height: 20),
+              const Text("ยืนยันการลบ", 
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: cTeddy)),
+              const SizedBox(height: 12),
+              const Text("ต้องการลบการแจ้งเตือนทั้งหมดใช่หรือไม่?\nข้อมูลจะหายไปถาวร", 
+                textAlign: TextAlign.center, 
+                style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4)),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text("ยืนยันลบ", 
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: cAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text("ยกเลิก", 
+                        style: TextStyle(color: cTeddy, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (ok == true) {
+      try {
+        await http.post(_notiApi, body: {"action": "deleteAll", "user_id": userId.toString(), "dorm_id": dormId.toString()});
+        _loadAll();
+      } catch (_) {}
+    }
+  }
+
+  // --- Logic & API Methods ---
+
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -82,7 +203,6 @@ class _NotificationPageState extends State<NotificationPage> {
     dormId = prefs.getInt("dorm_id") ?? int.tryParse(prefs.getString("dorm_id") ?? "0") ?? 0;
     platformRole = (prefs.getString("platform_role") ?? "user").toLowerCase();
     roleInDorm = (prefs.getString("role_in_dorm") ?? "tenant").toLowerCase();
-    
     await _loadAll();
   }
 
@@ -142,33 +262,10 @@ class _NotificationPageState extends State<NotificationPage> {
     } catch (_) {}
   }
 
-  Future<void> _deleteAllNotifications() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("ลบแจ้งเตือนทั้งหมด", style: TextStyle(fontWeight: FontWeight.bold, color: cTeddy)),
-        content: const Text("คุณแน่ใจใช่ไหมที่จะลบการแจ้งเตือนทั้งหมด?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("ยกเลิก")),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("ลบทั้งหมด", style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-    if (ok == true) {
-      try {
-        await http.post(_notiApi, body: {"action": "deleteAll", "user_id": userId.toString(), "dorm_id": dormId.toString()});
-        _loadAll();
-      } catch (_) {}
-    }
-  }
-
-  // --- Logic การเปิดหน้าจากแจ้งเตือน ---
   Future<void> _openByNotification(Map<String, dynamic> it) async {
     final String type = (it["type"] ?? "").toString().toLowerCase();
     final int refId = int.tryParse("${it["ref_id"]}") ?? 0;
-    
     if (mounted) setState(() => loading = true);
-    
     try {
       if (type == "new_registration") {
         await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPendingPage()));
@@ -181,7 +278,7 @@ class _NotificationPageState extends State<NotificationPage> {
               builder: (_) => RepairDetailPage(repair: _repairFromApi(m), canEdit: isAdmin)
             ));
           } else {
-            _snack("ไม่พบรายการแจ้งซ่อม ข้อมูลอาจถูกลบไปแล้ว");
+            _showNotFoundDialog("ข้อมูลอาจถูกลบหรือยกเลิกไปแล้ว");
           }
         }
       } 
@@ -193,13 +290,13 @@ class _NotificationPageState extends State<NotificationPage> {
               builder: (_) => BillDetailPage(item: bill, isAdmin: isAdmin)
             ));
           } else {
-            _snack("ไม่พบข้อมูลบิล รายการอาจถูกยกเลิกแล้ว");
+            _showNotFoundDialog("ข้อมูลอาจถูกลบหรือยกเลิกไปแล้ว");
           }
         }
       }
       await _loadAll();
     } catch (e) {
-      _snack("เข้าถึงข้อมูลไม่ได้");
+      _snack("ไม่สามารถเข้าถึงข้อมูลได้");
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -237,11 +334,10 @@ class _NotificationPageState extends State<NotificationPage> {
     } catch (_) { return null; }
   }
 
-  // แปลง Map จาก API เป็น RepairModel ที่สอดคล้องกับโครงสร้างใหม่
   RepairModel _repairFromApi(Map<String, dynamic> m) {
     return RepairModel(
       repairId: int.tryParse("${m["repair_id"]}") ?? 0,
-      type: (m["repair_type"] ?? m["type_name"] ?? "ทั่วไป").toString(), // ชื่อประเภทภาษาไทยจาก Join
+      type: (m["repair_type"] ?? m["type_name"] ?? "ทั่วไป").toString(),
       room: "${m['building_name'] ?? ''} ${m['room_number'] ?? ''}".trim(),
       status: (m["status"] ?? "pending").toString(),
       statusTh: (m["status_th"] ?? "รอดำเนินการ").toString(),

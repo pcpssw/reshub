@@ -116,6 +116,7 @@ function due_date_str($year, $month, $billing_day): string {
     return sprintf('%04d-%02d-%02d', intval($year), intval($month), $day);
 }
 
+// --- แก้ไขจุดที่ 1: ปรับ map_status ให้เหลือแค่ ชำระแล้ว และ ค้างชำระ ---
 function map_status($payment_status, $month, $year, $hasTenant, $billing_day = 5): array {
     if (!$hasTenant) {
         return ['key' => 'no_tenant', 'label' => 'ห้องว่าง', 'color' => '#9E9E9E'];
@@ -126,11 +127,7 @@ function map_status($payment_status, $month, $year, $hasTenant, $billing_day = 5
         return ['key' => 'paid', 'label' => 'ชำระแล้ว', 'color' => '#4CAF50'];
     }
 
-    $due = due_date_str($year, $month, $billing_day) . ' 23:59:59';
-    if (strtotime(date('Y-m-d H:i:s')) > strtotime($due)) {
-        return ['key' => 'overdue', 'label' => 'เลยกำหนด', 'color' => '#FF9800'];
-    }
-
+    // ตัดเงื่อนไขเช็ควันครบกำหนด (Overdue) ออกตามต้องการ ให้เหลือแค่ ค้างชำระ
     return ['key' => 'unpaid', 'label' => 'ค้างชำระ', 'color' => '#F44336'];
 }
 
@@ -830,6 +827,7 @@ if ($action === 'list') {
     jok(['data' => $rows]);
 }
 
+// --- แก้ไขจุดที่ 2: ปรับ set_status ให้รองรับแค่ ชำระแล้ว และ ค้างชำระ ---
 if ($action === 'set_status') {
     $dorm_id = intval(reqv('dorm_id', 0));
     $room_id = intval(reqv('room_id', 0));
@@ -841,11 +839,10 @@ if ($action === 'set_status') {
         jfail('ข้อมูลไม่ครบ');
     }
 
+    // ปรับ Map ให้รองรับแค่ 2 สถานะหลัก
     $statusMap = [
-        'paid' => 'verified',
-        'unpaid' => 'pending',
-        'overdue' => 'pending',
-        'no_tenant' => 'pending',
+        'paid'   => 'verified',
+        'unpaid' => 'pending'
     ];
     $newStatus = $statusMap[$status_key] ?? 'pending';
 
@@ -867,8 +864,9 @@ if ($action === 'set_status') {
 
     if (!empty($payment['user_id'])) {
         $message = ($newStatus === 'verified')
-            ? 'บิลเดือน ' . sprintf('%02d/%04d', $month, $year) . ' ได้รับการยืนยันแล้ว'
-            : 'บิลเดือน ' . sprintf('%02d/%04d', $month, $year) . ' ถูกปรับสถานะเป็นค้างชำระ';
+            ? 'บิลเดือน ' . sprintf('%02d/%04d', $month, $year) . ' ชำระแล้ว ✅'
+            : 'บิลเดือน ' . sprintf('%02d/%04d', $month, $year) . ' ค้างชำระ ❌';
+        
         $paymentIdForNoti = (int)$payment['payment_id'];
         $noti = $conn->prepare('INSERT INTO rh_notifications (user_id, dorm_id, type_id, ref_id, message, is_read) VALUES (?, ?, 2, ?, ?, 0)');
         $noti->bind_param('iiis', $payment['user_id'], $dorm_id, $paymentIdForNoti, $message);

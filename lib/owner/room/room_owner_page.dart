@@ -15,6 +15,7 @@ class AdminRoomPage extends StatefulWidget {
 }
 
 class _AdminRoomPageState extends State<AdminRoomPage> {
+  // --- สีและขนาดตัวอักษร ---
   static const Color cBg = Color(0xFFF4EFE6);
   static const Color cAccent = Color(0xFFDCD2C1);
   static const Color cIcon = Color(0xFF523D2D);
@@ -23,8 +24,8 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
-  static const double fCaption = 11.0;
 
+  // --- ข้อมูลสถานะ ---
   int dormId = 0;
   List<Room> rooms = [];
   bool loading = true;
@@ -32,43 +33,60 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
   RoomStatus? selectedStatus;
   RoomType? selectedType;
 
-  Map<String, Map<int, List<Room>>> get groupedRooms {
-    final Map<String, Map<int, List<Room>>> groups = {};
-    for (final room in filteredRooms) {
-      groups.putIfAbsent(room.building, () => {});
-      groups[room.building]!.putIfAbsent(room.floor, () => []);
-      groups[room.building]![room.floor]!.add(room);
-    }
-    return groups;
-  }
-
-  List<Room> get filteredRooms {
-    return rooms.where((room) {
-      final statusOk = selectedStatus == null || room.status == selectedStatus;
-      final typeOk = selectedType == null || room.type == selectedType;
-      return statusOk && typeOk;
-    }).toList();
-  }
+  // --- ระบบเลื่อนหน้าจอ ---
+  final ScrollController _scrollController = ScrollController();
+  bool _showBackToTop = false;
 
   @override
   void initState() {
     super.initState();
     _init();
+
+    // ฟังการเลื่อนเพื่อแสดง/ซ่อนปุ่มขึ้นบนสุด
+    _scrollController.addListener(() {
+      if (_scrollController.offset > 300 && !_showBackToTop) {
+        setState(() => _showBackToTop = true);
+      } else if (_scrollController.offset <= 300 && _showBackToTop) {
+        setState(() => _showBackToTop = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose(); // ล้าง Controller เมื่อปิดหน้า
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutQuart,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (dormId > 0) {
+      fetchRooms(showLoading: false);
+    }
   }
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     dormId = prefs.getInt("dorm_id") ?? prefs.getInt("selected_dorm_id") ?? 0;
     if (dormId > 0) {
-      await fetchRooms();
+      await fetchRooms(showLoading: true);
     } else if (mounted) {
       setState(() => loading = false);
     }
   }
 
-  Future<void> fetchRooms() async {
+  Future<void> fetchRooms({bool showLoading = true}) async {
     if (!mounted) return;
-    setState(() => loading = true);
+    if (showLoading) setState(() => loading = true);
 
     try {
       final res = await http.post(
@@ -93,9 +111,29 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
     } catch (e) {
       debugPrint("Error: $e");
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted && showLoading) setState(() => loading = false);
     }
   }
+
+  Map<String, Map<int, List<Room>>> get groupedRooms {
+    final Map<String, Map<int, List<Room>>> groups = {};
+    for (final room in filteredRooms) {
+      groups.putIfAbsent(room.building, () => {});
+      groups[room.building]!.putIfAbsent(room.floor, () => []);
+      groups[room.building]![room.floor]!.add(room);
+    }
+    return groups;
+  }
+
+  List<Room> get filteredRooms {
+    return rooms.where((room) {
+      final statusOk = selectedStatus == null || room.status == selectedStatus;
+      final typeOk = selectedType == null || room.type == selectedType;
+      return statusOk && typeOk;
+    }).toList();
+  }
+
+  // --- Widgets ---
 
   Widget _buildFilterSection() {
     return Container(
@@ -109,18 +147,9 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
               val: selectedStatus,
               items: const [
                 DropdownMenuItem(value: null, child: Text("ทั้งหมด")),
-                DropdownMenuItem(
-                  value: RoomStatus.available,
-                  child: Text("ห้องว่าง"),
-                ),
-                DropdownMenuItem(
-                  value: RoomStatus.occupied,
-                  child: Text("ไม่ว่าง"),
-                ),
-                DropdownMenuItem(
-                  value: RoomStatus.maintenance,
-                  child: Text("ซ่อมแซม"),
-                ),
+                DropdownMenuItem(value: RoomStatus.available, child: Text("ห้องว่าง")),
+                DropdownMenuItem(value: RoomStatus.occupied, child: Text("ไม่ว่าง")),
+                DropdownMenuItem(value: RoomStatus.maintenance, child: Text("ซ่อมแซม")),
               ],
               on: (v) => setState(() => selectedStatus = v),
             ),
@@ -156,51 +185,33 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
         selectedItemBuilder: (context) => items.map((i) {
           return Text(
             (i.child as Text).data ?? "",
-            style: const TextStyle(
-              fontSize: fDetail,
-              color: cTextMain,
-              overflow: TextOverflow.ellipsis,
-            ),
+            style: const TextStyle(fontSize: fDetail, color: cTextMain, overflow: TextOverflow.ellipsis),
           );
         }).toList(),
         items: items.map((i) {
           return DropdownMenuItem<T>(
             value: i.value,
-            child: Text(
-              (i.child as Text).data ?? "",
-              style: const TextStyle(fontSize: fDetail),
-            ),
+            child: Text((i.child as Text).data ?? "", style: const TextStyle(fontSize: fDetail)),
           );
         }).toList(),
         onChanged: on,
-        icon: const Icon(
-          Icons.keyboard_arrow_down_rounded,
-          color: cIcon,
-          size: 18,
-        ),
+        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: cIcon, size: 18),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(color: cIcon, fontSize: 12),
           filled: true,
           fillColor: cAccent.withOpacity(0.25),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         ),
       ),
     );
   }
 
   Widget _roomListWithGroupHeaders() {
-    if (filteredRooms.isEmpty) {
+    if (filteredRooms.isEmpty && !loading) {
       return const Center(
-        child: Text(
-          "ไม่พบข้อมูลห้องพัก",
-          style: TextStyle(color: cTextMain, fontSize: fBody),
-        ),
+        child: Text("ไม่พบข้อมูลห้องพัก", style: TextStyle(color: cTextMain, fontSize: fBody)),
       );
     }
 
@@ -208,9 +219,12 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
     final buildings = groups.keys.toList()..sort();
 
     return RefreshIndicator(
-      onRefresh: fetchRooms,
+      onRefresh: () => fetchRooms(showLoading: false),
       color: cTextMain,
+      backgroundColor: Colors.white,
       child: ListView.builder(
+        controller: _scrollController, // ผูกกับ ScrollController
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
         itemCount: buildings.length,
         itemBuilder: (context, bIndex) {
@@ -221,57 +235,34 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: floors.map((fNum) {
               final roomsInFloor = groups[bName]![fNum]!;
-
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 4,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                     child: Row(
                       children: [
                         const Icon(Icons.business, size: 15, color: cIcon),
                         const SizedBox(width: 8),
-                        Text(
-                          " $bName - ชั้น $fNum",
-                          style: const TextStyle(
-                            fontSize: fHeader,
-                            fontWeight: FontWeight.bold,
-                            color: cTextMain,
-                          ),
+                        Text(" $bName - ชั้น $fNum", 
+                          style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.bold, color: cTextMain)
                         ),
                         const SizedBox(width: 10),
-                        Expanded(
-                          child: Divider(
-                            color: cAccent.withOpacity(0.5),
-                            thickness: 1,
-                          ),
-                        ),
+                        Expanded(child: Divider(color: cAccent.withOpacity(0.5), thickness: 1)),
                       ],
                     ),
                   ),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.maxWidth;
-                      final crossAxisCount = width > 700 ? 4 : 3;
-
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                          childAspectRatio: 0.92,
-                        ),
-                        itemCount: roomsInFloor.length,
-                        itemBuilder: (context, rIndex) {
-                          return _roomCard(roomsInFloor[rIndex]);
-                        },
-                      );
-                    },
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 0.92,
+                    ),
+                    itemCount: roomsInFloor.length,
+                    itemBuilder: (context, rIndex) => _roomCard(roomsInFloor[rIndex]),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -292,18 +283,12 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
     if (room.status == RoomStatus.available) {
       sColor = Colors.green.shade700;
       sLabel = "ว่าง";
-      sIcon =
-          room.type == RoomType.air
-              ? Icons.ac_unit_rounded
-              : Icons.air_rounded;
+      sIcon = room.type == RoomType.air ? Icons.ac_unit_rounded : Icons.air_rounded;
       bgColor = Colors.green.shade50;
     } else if (room.status == RoomStatus.occupied) {
       sColor = Colors.red.shade700;
       sLabel = "ไม่ว่าง";
-      sIcon =
-          room.type == RoomType.air
-              ? Icons.ac_unit_rounded
-              : Icons.air_rounded;
+      sIcon = room.type == RoomType.air ? Icons.ac_unit_rounded : Icons.air_rounded;
       bgColor = Colors.red.shade50;
     } else {
       sColor = cIcon;
@@ -316,9 +301,7 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
       onTap: () async {
         final result = await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => RoomDetailPage(dormId: dormId, room: room),
-          ),
+          MaterialPageRoute(builder: (_) => RoomDetailPage(dormId: dormId, room: room)),
         );
         if (result == true) fetchRooms();
       },
@@ -327,13 +310,7 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Stack(
           children: [
@@ -343,32 +320,18 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
                   flex: 5,
                   child: Container(
                     width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(14),
-                      ),
-                    ),
+                    decoration: BoxDecoration(color: bgColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
                     child: Icon(sIcon, size: 22, color: sColor),
                   ),
                 ),
                 Expanded(
                   flex: 5,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
+                    padding: const EdgeInsets.all(6),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          room.roomNo,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12.5,
-                            color: cTextMain,
-                          ),
-                        ),
+                        Text(room.roomNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: cTextMain)),
                         const SizedBox(height: 4),
                         _statusBadgeSmall(sLabel, sColor),
                       ],
@@ -380,30 +343,9 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
             Positioned(
               top: 4,
               right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 1,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.95),
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(
-                    color: cTextMain.withOpacity(0.08),
-                    width: 0.5,
-                  ),
-                ),
-                child: Text(
-                  room.type == RoomType.air ? "แอร์" : "พัดลม",
-                  style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    color:
-                        room.type == RoomType.air
-                            ? Colors.blue.shade700
-                            : Colors.orange.shade800,
-                  ),
-                ),
+              child: Text(
+                room.type == RoomType.air ? "แอร์" : "พัดลม",
+                style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: room.type == RoomType.air ? Colors.blue : Colors.orange),
               ),
             ),
           ],
@@ -415,20 +357,9 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
   Widget _statusBadgeSmall(String label, Color color) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 9,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+      child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -439,45 +370,37 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
     return Scaffold(
       backgroundColor: cBg,
       appBar: AppBar(
-        toolbarHeight: 50,
         elevation: 0,
         backgroundColor: Colors.white,
         centerTitle: true,
         automaticallyImplyLeading: false,
         leading: canGoBack
             ? IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: cTextMain,
-                  size: 18,
-                ),
+                icon: const Icon(Icons.arrow_back_ios_new, color: cTextMain, size: 18),
                 onPressed: () => Navigator.pop(context),
               )
             : null,
-        title: const Text(
-          "ห้องพัก",
-          style: TextStyle(
-            color: cTextMain,
-            fontWeight: FontWeight.bold,
-            fontSize: fHeader,
-          ),
-        ),
+        title: const Text("จัดการห้องพัก", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader)),
       ),
       body: Column(
         children: [
           _buildFilterSection(),
           Expanded(
             child: loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: cTextMain,
-                      strokeWidth: 2,
-                    ),
-                  )
+                ? const Center(child: CircularProgressIndicator(color: cTextMain, strokeWidth: 2))
                 : _roomListWithGroupHeaders(),
           ),
         ],
       ),
+      // --- ปุ่มเลื่อนขึ้นบนสุด ---
+      floatingActionButton: _showBackToTop
+          ? FloatingActionButton(
+              onPressed: _scrollToTop,
+              backgroundColor: cIcon,
+              mini: true,
+              child: const Icon(Icons.arrow_upward, color: Colors.white),
+            )
+          : null,
     );
   }
 }
