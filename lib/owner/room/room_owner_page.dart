@@ -33,7 +33,6 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
   RoomStatus? selectedStatus;
   RoomType? selectedType;
 
-  // --- ระบบเลื่อนหน้าจอ ---
   final ScrollController _scrollController = ScrollController();
   bool _showBackToTop = false;
 
@@ -42,7 +41,6 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
     super.initState();
     _init();
 
-    // ฟังการเลื่อนเพื่อแสดง/ซ่อนปุ่มขึ้นบนสุด
     _scrollController.addListener(() {
       if (_scrollController.offset > 300 && !_showBackToTop) {
         setState(() => _showBackToTop = true);
@@ -64,14 +62,6 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutQuart,
     );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (dormId > 0) {
-      fetchRooms(showLoading: false);
-    }
   }
 
   Future<void> _init() async {
@@ -132,8 +122,6 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
       return statusOk && typeOk;
     }).toList();
   }
-
-  // --- Widgets ---
 
   Widget _buildFilterSection() {
     return Container(
@@ -225,7 +213,7 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 120), // เพิ่ม Padding ล่างเผื่อ FAB
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
         itemCount: buildings.length,
         itemBuilder: (context, bIndex) {
           final bName = buildings[bIndex];
@@ -381,6 +369,13 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
               )
             : null,
         title: const Text("จัดการห้องพัก", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader)),
+        // --- เพิ่มปุ่มรีเฟรชตรงนี้ ---
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: cIcon),
+            onPressed: () => fetchRooms(showLoading: true),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -392,22 +387,20 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
           ),
         ],
       ),
-      // --- ปรับแต่งตำแหน่งปุ่ม FAB ให้ขยับขึ้นมาอีก ---
-floatingActionButton: _showBackToTop
+      floatingActionButton: _showBackToTop
           ? Padding(
-              padding: const EdgeInsets.only(bottom: 80.0), // ความสูงเท่าเดิมที่คุณต้องการ
+              padding: const EdgeInsets.only(bottom: 80.0),
               child: FloatingActionButton(
                 onPressed: _scrollToTop,
                 backgroundColor: cIcon,
-                // ลบ mini: true ออก เพื่อให้ปุ่มมีขนาดปกติ
                 elevation: 6,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16), // ขอบมนเท่าเดิมที่คุณชอบ
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
                   Icons.arrow_upward_rounded, 
                   color: Colors.white,
-                  size: 28, // ปรับขนาดไอคอนให้ดูเต็มปุ่มมากขึ้น
+                  size: 28,
                 ),
               ),
             )

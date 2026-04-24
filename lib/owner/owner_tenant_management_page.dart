@@ -193,7 +193,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
               labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               tabs: const [
                 Tab(text: "ผู้เช่าห้อง"),
-                Tab(text: "ประวัติห้อง"),
+                Tab(text: "ประวัติผู้เช่าเก่า"),
                 Tab(text: "ผู้ดูแลห้อง"),
               ],
             ),
