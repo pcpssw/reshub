@@ -15,6 +15,7 @@ class TenantListAdminPage extends StatefulWidget {
 
 class _TenantListAdminPageState extends State<TenantListAdminPage>
     with SingleTickerProviderStateMixin {
+  // --- Style Configuration ---
   static const Color cBg = Color(0xFFF4EFE6);
   static const Color cAccent = Color(0xFFDCD2C1);
   static const Color cIcon = Color(0xFF523D2D);
@@ -23,11 +24,13 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
-  static const double fCaption = 11.0;
 
+  // --- State Variables ---
   bool loading = true;
   int dormId = 0;
   late TabController _tabController;
+  final ScrollController _scrollController = ScrollController(); // สำหรับควบคุมการเลื่อน
+  bool _showBackToTopButton = false; // สถานะการแสดงปุ่มเด้งขึ้นบน
 
   List<Map<String, dynamic>> allUsers = [];
   String keyword = "";
@@ -36,19 +39,33 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+
+    // ตรวจสอบตำแหน่งการเลื่อนเพื่อโชว์/ซ่อนปุ่ม
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300) {
+        if (!_showBackToTopButton) {
+          setState(() => _showBackToTopButton = true);
+        }
+      } else {
+        if (_showBackToTopButton) {
+          setState(() => _showBackToTopButton = false);
+        }
+      }
+    });
+
     _init();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose(); // คืนคืน Memory
     super.dispose();
   }
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    dormId =
-        prefs.getInt("dorm_id") ??
+    dormId = prefs.getInt("dorm_id") ??
         int.tryParse(prefs.getString("dorm_id") ?? "0") ??
         0;
 
@@ -91,9 +108,26 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
     }
   }
 
+  // ฟังก์ชันเลื่อนกลับขึ้นไปบนสุด
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  // --- Helper Methods ---
   bool _isAdmin(Map<String, dynamic> u) {
     final role = (u["role"] ?? "").toString().toLowerCase();
     return role == "admin";
+  }
+
+  bool _isFormerTenant(Map<String, dynamic> u) {
+    if (_isAdmin(u)) return false;
+    final tenantStatus = (u["tenant_status"] ?? "").toString().toLowerCase();
+    final moveOutDate = (u["move_out_date"] ?? "").toString().trim();
+    return tenantStatus == "former" || moveOutDate.isNotEmpty;
   }
 
   String _roomLabel(Map<String, dynamic> t) {
@@ -101,35 +135,17 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       final roleInDorm = (t["role_in_dorm"] ?? "").toString().toLowerCase();
       return roleInDorm == "owner" ? "เจ้าของหอพัก" : "ผู้ดูแลหอพัก";
     }
-
     final b = (t["building"] ?? "").toString().trim();
     final r = (t["room_number"] ?? "").toString().trim();
-
     if (b.isEmpty && r.isEmpty) return "รอการจัดห้อง";
     return b.isEmpty ? r : (r.isEmpty ? b : "$b-$r");
   }
 
-  bool _isFormerTenant(Map<String, dynamic> u) {
-    if (_isAdmin(u)) return false;
-
-    final tenantStatus = (u["tenant_status"] ?? "").toString().toLowerCase();
-    final moveOutDate = (u["move_out_date"] ?? "").toString().trim();
-
-    return tenantStatus == "former" || moveOutDate.isNotEmpty;
-  }
-
   List<Map<String, dynamic>> _filteredList(String role) {
     final k = keyword.trim().toLowerCase();
-
     Iterable<Map<String, dynamic>> list = allUsers.where((u) {
-      if (role == "admin") {
-        return _isAdmin(u);
-      }
-
-      if (role == "old_tenant") {
-        return !_isAdmin(u) && _isFormerTenant(u);
-      }
-
+      if (role == "admin") return _isAdmin(u);
+      if (role == "old_tenant") return !_isAdmin(u) && _isFormerTenant(u);
       return !_isAdmin(u) && !_isFormerTenant(u);
     });
 
@@ -141,27 +157,6 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       final phone = (u["phone"] ?? "").toString().toLowerCase();
       return name.contains(k) || room.contains(k) || phone.contains(k);
     }).toList();
-  }
-
-  String _subLabel(Map<String, dynamic> u, String role) {
-    if (role == "admin") {
-      final roleInDorm = (u["role_in_dorm"] ?? "").toString().toLowerCase();
-      return roleInDorm == "owner" ? "เจ้าของหอพัก" : "ผู้ดูแลหอพัก";
-    }
-
-    final room = _roomLabel(u);
-
-    if (role == "old_tenant") {
-      return room == "รอการจัดห้อง" ? "ผู้เช่าห้องเก่า" : "ห้องเดิม $room";
-    }
-
-    return room == "รอการจัดห้อง" ? room : "ห้อง $room";
-  }
-
-  IconData _leadingIcon(String role) {
-    if (role == "admin") return Icons.admin_panel_settings_rounded;
-    if (role == "old_tenant") return Icons.person_remove_alt_1_rounded;
-    return Icons.person_rounded;
   }
 
   @override
@@ -182,11 +177,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
         elevation: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: cTextMain,
-            size: 18,
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new, color: cTextMain, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         bottom: PreferredSize(
@@ -195,19 +186,11 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
             color: Colors.white,
             child: TabBar(
               controller: _tabController,
-              isScrollable: false,
               labelColor: cTextMain,
               unselectedLabelColor: Colors.grey,
               indicatorColor: cTextMain,
               indicatorSize: TabBarIndicatorSize.tab,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               tabs: const [
                 Tab(text: "ผู้เช่าห้อง"),
                 Tab(text: "ประวัติห้อง"),
@@ -218,9 +201,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
         ),
       ),
       body: loading
-          ? const Center(
-              child: CircularProgressIndicator(color: cTextMain),
-            )
+          ? const Center(child: CircularProgressIndicator(color: cTextMain))
           : Column(
               children: [
                 _buildSearchField(),
@@ -236,6 +217,15 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
                 ),
               ],
             ),
+      // ปุ่มเด้งขึ้นบน (จะแสดงเมื่อเลื่อนลงมาเกิน 300px)
+      floatingActionButton: _showBackToTopButton
+          ? FloatingActionButton(
+              onPressed: _scrollToTop,
+              backgroundColor: cTextMain,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+            )
+          : null,
     );
   }
 
@@ -267,17 +257,12 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
 
   Widget _buildListView(String role) {
     final filtered = _filteredList(role);
-    final bool isAdminPage = role == "admin";
-
     if (filtered.isEmpty) {
-      String emptyText = "ไม่พบข้อมูลรายชื่อ";
-      if (role == "old_tenant") emptyText = "ไม่พบประวัติผู้เช่าห้องเก่า";
-      if (role == "admin") emptyText = "ไม่พบข้อมูลผู้ดูแลห้อง";
-
       return RefreshIndicator(
         onRefresh: _fetchTenants,
         color: cTextMain,
         child: ListView(
+          controller: _scrollController, // ใส่ Controller เพื่อให้เช็คตำแหน่งได้
           children: [
             SizedBox(
               height: MediaQuery.of(context).size.height * 0.55,
@@ -286,20 +271,14 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      role == "old_tenant"
-                          ? Icons.person_off_rounded
-                          : Icons.person_search_rounded,
+                      role == "old_tenant" ? Icons.person_off_rounded : Icons.person_search_rounded,
                       size: 60,
                       color: cAccent,
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      emptyText,
-                      style: const TextStyle(
-                        color: cTextMain,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                      ),
+                      role == "old_tenant" ? "ไม่พบประวัติผู้เช่าเก่า" : "ไม่พบข้อมูลรายชื่อ",
+                      style: const TextStyle(color: cTextMain, fontWeight: FontWeight.w900, fontSize: 16),
                     ),
                   ],
                 ),
@@ -314,24 +293,20 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       onRefresh: _fetchTenants,
       color: cTextMain,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        controller: _scrollController, // ใส่ Controller ตรงนี้เพื่อให้ปุ่มทำงาน
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
         itemCount: filtered.length,
         itemBuilder: (context, index) {
           final u = filtered[index];
           final name = (u["full_name"] ?? u["username"] ?? "-").toString();
-          final subLabel = _subLabel(u, role);
-
+          
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
+                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
               ],
             ),
             child: InkWell(
@@ -339,9 +314,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => ProfilePage(tenantData: u),
-                  ),
+                  MaterialPageRoute(builder: (_) => ProfilePage(tenantData: u)),
                 ).then((value) => _fetchTenants());
               },
               child: Padding(
@@ -352,7 +325,8 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
                       radius: 24,
                       backgroundColor: cAccent.withOpacity(0.4),
                       child: Icon(
-                        _leadingIcon(role),
+                        role == "admin" ? Icons.admin_panel_settings_rounded : 
+                        role == "old_tenant" ? Icons.person_remove_alt_1_rounded : Icons.person_rounded,
                         color: cIcon,
                         size: 28,
                       ),
@@ -364,35 +338,17 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
                         children: [
                           Text(
                             name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              color: cTextMain,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: cTextMain),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            subLabel,
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            _roomLabel(u),
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
                     ),
-                    Icon(
-                      isAdminPage
-                          ? Icons.arrow_forward_ios_rounded
-                          : role == "old_tenant"
-                              ? Icons.person_remove_alt_1_rounded
-                              : Icons.arrow_forward_ios_rounded,
-                      size: 14,
-                      color: const Color(0xFFD7CCC8),
-                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFD7CCC8)),
                   ],
                 ),
               ),

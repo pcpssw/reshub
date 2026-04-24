@@ -188,15 +188,29 @@ class _BillPageState extends State<BillPage> {
           ),
         ),
         actions: [
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ExpensePage()),
-            ),
-            icon: const Icon(
-              Icons.receipt_long,
-              color: _textColor,
-              size: 20,
+          // ✅ ปุ่มสรุปรายปี สไตล์ OutlinedButton
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
+            child: OutlinedButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ExpensePage()), // เชื่อมไปยัง ExpensePage (หน้าสรุปรายปี)
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color.fromARGB(255, 172, 170, 170), width: 1.2), // เปลี่ยนสีที่นี่
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              child: const Text(
+                "สรุปรายปี",
+                style: TextStyle(
+                  color: _textColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
           ),
         ],
@@ -444,23 +458,23 @@ class _BillPageState extends State<BillPage> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: _lineColor),
-                        color: _bgColor.withOpacity(0.18),
+                        color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.18),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
                           Icon(
                             Icons.add_a_photo_rounded,
-                            color: _mutedColor,
+                            color: Color.fromARGB(255, 114, 84, 59),
                             size: 42,
                           ),
                           SizedBox(height: 8),
                           Text(
-                            "แนบสลิปการชำระเงิน",
+                            "แตะเพื่อเลือกรูปสลิป",
                             style: TextStyle(
-                              fontSize: 12,
-                              color: _mutedColor,
-                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                               color: Color.fromARGB(255, 114, 84, 59),
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],

@@ -21,7 +21,7 @@ const Color cAccent = Color(0xFFD7CCC8);
 
 const List<Map<String, dynamic>> kRepairTypeOptions = [
   {"id": 1, "name": "ไฟฟ้า", "icon": Icons.bolt_rounded},
-  {"id": 2, "name": "น้ำ", "icon": Icons.water_drop_rounded},
+  {"id": 2, "name": "น้ำ", "icon": Icons.water_drop_rounded}, 
   {"id": 3, "name": "เครื่องใช้", "icon": Icons.ac_unit_rounded}, 
   {"id": 4, "name": "อื่นๆ", "icon": Icons.construction_rounded},
 ];
@@ -525,7 +525,7 @@ class _RepairPageState extends State<RepairPage> {
               hintText: "ระบุอาการเสียที่พบ...",
               hintStyle: TextStyle(color: Colors.grey.shade600),
               filled: true,
-              fillColor: cBg,
+              fillColor: const Color.fromARGB(255, 255, 255, 255),
               contentPadding: const EdgeInsets.all(14),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
@@ -557,7 +557,7 @@ class _RepairPageState extends State<RepairPage> {
         height: 160,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: cBg,
+          color: const Color.fromARGB(255, 255, 255, 255),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: cAccent, width: 1.3),
         ),
@@ -565,25 +565,18 @@ class _RepairPageState extends State<RepairPage> {
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
-                  Icon(Icons.add_a_photo_rounded, color: cDark, size: 42),
+                  Icon(Icons.add_a_photo_rounded, color: Color.fromARGB(255, 114, 84, 59), size: 42),
                   SizedBox(height: 10),
                   Text(
                     "แตะเพื่อเลือกรูป",
                     style: TextStyle(
-                      color: cTextMain,
+                       color: Color.fromARGB(255, 114, 84, 59),
                       fontSize: fDetail,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   SizedBox(height: 6),
-                  Text(
-                    "เลือกได้จากรูปในเครื่องหรือกล้อง",
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.normal,
-                      fontSize: fCaption,
-                    ),
-                  ),
+                  
                 ],
               )
             : Stack(

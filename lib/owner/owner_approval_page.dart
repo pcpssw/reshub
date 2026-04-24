@@ -869,7 +869,7 @@ class _RoomSelectionPageState extends State<RoomSelectionPage> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  "ห้อง $label",
+                                  "ตึก$label",
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,

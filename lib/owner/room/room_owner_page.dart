@@ -15,7 +15,7 @@ class AdminRoomPage extends StatefulWidget {
 }
 
 class _AdminRoomPageState extends State<AdminRoomPage> {
-  // --- สีและขนาดตัวอักษร ---
+  // --- สีและขนาดตัวอักษร (ResHub Theme) ---
   static const Color cBg = Color(0xFFF4EFE6);
   static const Color cAccent = Color(0xFFDCD2C1);
   static const Color cIcon = Color(0xFF523D2D);
@@ -54,7 +54,7 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
 
   @override
   void dispose() {
-    _scrollController.dispose(); // ล้าง Controller เมื่อปิดหน้า
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -223,9 +223,9 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
       color: cTextMain,
       backgroundColor: Colors.white,
       child: ListView.builder(
-        controller: _scrollController, // ผูกกับ ScrollController
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 120), // เพิ่ม Padding ล่างเผื่อ FAB
         itemCount: buildings.length,
         itemBuilder: (context, bIndex) {
           final bName = buildings[bIndex];
@@ -392,13 +392,24 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
           ),
         ],
       ),
-      // --- ปุ่มเลื่อนขึ้นบนสุด ---
-      floatingActionButton: _showBackToTop
-          ? FloatingActionButton(
-              onPressed: _scrollToTop,
-              backgroundColor: cIcon,
-              mini: true,
-              child: const Icon(Icons.arrow_upward, color: Colors.white),
+      // --- ปรับแต่งตำแหน่งปุ่ม FAB ให้ขยับขึ้นมาอีก ---
+floatingActionButton: _showBackToTop
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 80.0), // ความสูงเท่าเดิมที่คุณต้องการ
+              child: FloatingActionButton(
+                onPressed: _scrollToTop,
+                backgroundColor: cIcon,
+                // ลบ mini: true ออก เพื่อให้ปุ่มมีขนาดปกติ
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16), // ขอบมนเท่าเดิมที่คุณชอบ
+                ),
+                child: const Icon(
+                  Icons.arrow_upward_rounded, 
+                  color: Colors.white,
+                  size: 28, // ปรับขนาดไอคอนให้ดูเต็มปุ่มมากขึ้น
+                ),
+              ),
             )
           : null,
     );
