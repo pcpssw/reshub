@@ -30,7 +30,6 @@ require_once "db.php";
 mysqli_set_charset($conn, "utf8mb4");
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-// ---------------- รับค่า ----------------
 $raw = file_get_contents("php://input");
 $inputJson = json_decode($raw, true) ?: [];
 
@@ -44,56 +43,48 @@ function param($k, $default = "") {
 
 $action  = (string)param("action", "get");
 $dorm_id = (int)param("dorm_id", 0);
-$month   = (int)param("month", date("n"));
-$year    = (int)param("year", date("Y"));
+$month   = (int)param("month", (int)date("n"));
+$year    = (int)param("year", (int)date("Y"));
 
 if ($dorm_id <= 0) fail("ไม่พบ dorm_id");
 
-$prevMonth = $month - 1;
-$prevYear  = $year;
-if ($prevMonth <= 0) {
-    $prevMonth = 12;
-    $prevYear--;
-}
-
-# =====================================================
-# ✅ GET
-# =====================================================
+// --- 1. ACTION: GET ---
 if ($action === "get") {
     try {
         $sql = "
             SELECT
-                r.room_id,
-                r.room_number,
-                r.tenant_id,
+                r.room_id, r.room_number, r.tenant_id,
                 COALESCE(u.full_name, '') AS full_name,
                 COALESCE(b.building_name, '') AS building,
-                COALESCE(pm.water_new, 0) AS prev_w,
-                COALESCE(pm.elec_new, 0) AS prev_e,
+                COALESCE((
+                    SELECT water_new FROM rh_meter 
+                    WHERE room_id = r.room_id 
+                    AND NOT (month = ? AND year = ? AND user_id = r.tenant_id)
+                    ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1
+                ), 0) AS prev_w,
+                COALESCE((
+                    SELECT elec_new FROM rh_meter 
+                    WHERE room_id = r.room_id 
+                    AND NOT (month = ? AND year = ? AND user_id = r.tenant_id)
+                    ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1
+                ), 0) AS prev_e,
                 COALESCE(cm.water_new, 0) AS cur_w,
                 COALESCE(cm.elec_new, 0) AS cur_e
             FROM rh_rooms r
             LEFT JOIN rh_users u ON u.user_id = r.tenant_id
             LEFT JOIN rh_buildings b ON b.building_id = r.building_id
-            LEFT JOIN rh_meter pm
-                ON pm.dorm_id = r.dorm_id
-               AND pm.room_id = r.room_id
-               AND pm.month = ?
-               AND pm.year = ?
             LEFT JOIN rh_meter cm
-                ON cm.dorm_id = r.dorm_id
-               AND cm.room_id = r.room_id
+                ON cm.room_id = r.room_id
                AND cm.month = ?
                AND cm.year = ?
+               AND cm.user_id = r.tenant_id
             WHERE r.dorm_id = ?
             ORDER BY b.building_name, r.room_number
         ";
-
         $st = $conn->prepare($sql);
-        $st->bind_param("iiiii", $prevMonth, $prevYear, $month, $year, $dorm_id);
+        $st->bind_param("iiiiiii", $month, $year, $month, $year, $month, $year, $dorm_id);
         $st->execute();
         $rs = $st->get_result();
-
         $rooms = [];
         while ($row = $rs->fetch_assoc()) {
             $rooms[] = [
@@ -105,109 +96,56 @@ if ($action === "get") {
                 "prev_water_meter" => (int)$row["prev_w"],
                 "prev_electric_meter" => (int)$row["prev_e"],
                 "current_water_meter" => (int)$row["cur_w"],
-                "current_electric_meter" => (int)$row["cur_e"],
+                "current_electric_meter" => (int)$row["cur_e"]
             ];
         }
-
         ok(["rooms" => $rooms]);
-
-    } catch (Throwable $e) {
-        fail($e->getMessage(), 500);
-    }
+    } catch (Throwable $e) { fail($e->getMessage(), 500); }
 }
 
-# =====================================================
-# ✅ SAVE (แก้บัคแล้ว)
-# =====================================================
-if ($action === "save") {
-
+// --- 2. ACTION: SAVE ---
+elseif ($action === "save") {
     $items = param("items");
-    if (!is_array($items) || empty($items)) fail("ไม่มีข้อมูล");
-
+    if (!is_array($items) || empty($items)) fail("ไม่มีข้อมูลที่จะบันทึก");
     try {
         $conn->begin_transaction();
-
-        $stPrev = $conn->prepare("
-            SELECT water_new, elec_new
-            FROM rh_meter
-            WHERE dorm_id=? AND room_id=? AND month=? AND year=?
-        ");
-
-        $stCur = $conn->prepare("
-            SELECT reading_id, water_new, elec_new
-            FROM rh_meter
-            WHERE dorm_id=? AND room_id=? AND month=? AND year=?
-        ");
-
-        $stUpd = $conn->prepare("
-            UPDATE rh_meter
-            SET water_old=?, water_new=?, elec_old=?, elec_new=?
-            WHERE reading_id=?
-        ");
-
-        $stIns = $conn->prepare("
-            INSERT INTO rh_meter
-            (dorm_id, room_id, month, year, water_old, water_new, elec_old, elec_new)
-            VALUES (?,?,?,?,?,?,?,?)
-        ");
-
-        $saved = 0;
-
         foreach ($items as $it) {
-
             $room_id = (int)($it['room_id'] ?? 0);
             if ($room_id <= 0) continue;
+            
+            $stTenant = $conn->prepare("SELECT tenant_id FROM rh_rooms WHERE room_id=? LIMIT 1");
+            $stTenant->bind_param("i", $room_id);
+            $stTenant->execute();
+            $tid = $stTenant->get_result()->fetch_assoc()['tenant_id'] ?? 0;
+            if ($tid <= 0) continue;
 
-            // 🔹 เดือนก่อน
-            $stPrev->bind_param("iiii", $dorm_id, $room_id, $prevMonth, $prevYear);
+            $stPrev = $conn->prepare("SELECT water_new, elec_new FROM rh_meter WHERE room_id=? AND NOT (month=? AND year=? AND user_id=?) ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1");
+            $stPrev->bind_param("iiii", $room_id, $month, $year, $tid);
             $stPrev->execute();
             $prev = $stPrev->get_result()->fetch_assoc();
+            
+            $prevW = (int)($prev ? $prev['water_new'] : 0);
+            $prevE = (int)($prev ? $prev['elec_new'] : 0);
+            $newW = (int)($it['water_meter'] ?? 0);
+            $newE = (int)($it['electric_meter'] ?? 0);
 
-            $prevW = $prev ? (int)$prev['water_new'] : 0;
-            $prevE = $prev ? (int)$prev['elec_new'] : 0;
-
-            // 🔹 เดือนนี้ (สำคัญ)
-            $stCur->bind_param("iiii", $dorm_id, $room_id, $month, $year);
+            $stCur = $conn->prepare("SELECT reading_id FROM rh_meter WHERE room_id=? AND month=? AND year=? AND user_id=?");
+            $stCur->bind_param("iiii", $room_id, $month, $year, $tid);
             $stCur->execute();
-            $cur = $stCur->get_result()->fetch_assoc();
+            $curData = $stCur->get_result()->fetch_assoc();
 
-            // ✅ FIX: ใช้ค่าปัจจุบัน ถ้าไม่ได้ส่งมา
-            $newW = array_key_exists('water_meter', $it)
-                ? (int)$it['water_meter']
-                : ($cur ? (int)$cur['water_new'] : $prevW);
-
-            $newE = array_key_exists('electric_meter', $it)
-                ? (int)$it['electric_meter']
-                : ($cur ? (int)$cur['elec_new'] : $prevE);
-
-            // 🔥 กันเลขย้อน
-            if ($newW < $prevW) fail("น้ำย้อนหลังห้อง $room_id");
-            if ($newE < $prevE) fail("ไฟย้อนหลังห้อง $room_id");
-
-            if ($cur) {
-                // 🔥 UPDATE
-                $reading_id = (int)$cur['reading_id'];
-                $stUpd->bind_param("iiiii", $prevW, $newW, $prevE, $newE, $reading_id);
+            if ($curData) {
+                $stUpd = $conn->prepare("UPDATE rh_meter SET water_old=?, water_new=?, elec_old=?, elec_new=? WHERE reading_id=?");
+                $stUpd->bind_param("iiiii", $prevW, $newW, $prevE, $newE, $curData['reading_id']);
                 $stUpd->execute();
             } else {
-                // ➕ INSERT
-                $stIns->bind_param("iiiiiiii",
-                    $dorm_id, $room_id, $month, $year,
-                    $prevW, $newW, $prevE, $newE
-                );
+                $stIns = $conn->prepare("INSERT INTO rh_meter (dorm_id, room_id, month, year, water_old, water_new, elec_old, elec_new, user_id) VALUES (?,?,?,?,?,?,?,?,?)");
+                $stIns->bind_param("iiiiiiiii", $dorm_id, $room_id, $month, $year, $prevW, $newW, $prevE, $newE, $tid);
                 $stIns->execute();
             }
-
-            $saved++;
         }
-
         $conn->commit();
-        ok(["saved" => $saved]);
-
-    } catch (Throwable $e) {
-        $conn->rollback();
-        fail($e->getMessage(), 500);
-    }
+        ok(["saved" => count($items)]);
+    } catch (Throwable $e) { $conn->rollback(); fail($e->getMessage(), 500); }
 }
-
-fail("Unknown action");
+fail("Action '$action' ไม่ถูกต้อง");

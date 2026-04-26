@@ -238,7 +238,7 @@ class _PlatformDormListPageState extends State<PlatformDormListPage> {
       appBar: AppBar(
         backgroundColor: Colors.white, elevation: 0.5, toolbarHeight: 60,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: cTextMain), onPressed: () => Navigator.pop(context)),
-        title: const Text("จัดการหอพัก", style: TextStyle(fontWeight: FontWeight.w900, color: cTextMain, fontSize: 18)),
+        title: const Text("จัดการหอพัก", style: TextStyle(fontWeight: FontWeight.w900, color: cTextMain, fontSize: 16)),
         centerTitle: true,
       ),
       body: Column(

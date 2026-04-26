@@ -146,7 +146,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           const SizedBox(height: 24),
 
                           _sectionLabel("ตรวจสอบตัวตน"),
-                          _field(usernameCtrl, "Username", Icons.person_outline),
+                          _field(usernameCtrl, "ชื่อผู้ใช้งาน", Icons.person_outline),
                           const SizedBox(height: 12),
                           _field(dormCodeCtrl, "โค้ดหอพัก", Icons.vpn_key_outlined),
                           const SizedBox(height: 12),

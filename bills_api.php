@@ -116,7 +116,6 @@ function due_date_str($year, $month, $billing_day): string {
     return sprintf('%04d-%02d-%02d', intval($year), intval($month), $day);
 }
 
-// --- แก้ไขจุดที่ 1: ปรับ map_status ให้เหลือแค่ ชำระแล้ว และ ค้างชำระ ---
 function map_status($payment_status, $month, $year, $hasTenant, $billing_day = 5): array {
     if (!$hasTenant) {
         return ['key' => 'no_tenant', 'label' => 'ห้องว่าง', 'color' => '#9E9E9E'];
@@ -127,7 +126,6 @@ function map_status($payment_status, $month, $year, $hasTenant, $billing_day = 5
         return ['key' => 'paid', 'label' => 'ชำระแล้ว', 'color' => '#4CAF50'];
     }
 
-    // ตัดเงื่อนไขเช็ควันครบกำหนด (Overdue) ออกตามต้องการ ให้เหลือแค่ ค้างชำระ
     return ['key' => 'unpaid', 'label' => 'ค้างชำระ', 'color' => '#F44336'];
 }
 
@@ -169,20 +167,11 @@ function calc_bill_parts($baseRent, $waterOld, $waterNew, $elecOld, $elecNew, $w
 function latest_meter_join_sql(): string {
     return "
         LEFT JOIN rh_meter m
-               ON m.reading_id = (
-                    SELECT mm.reading_id
-                    FROM rh_meter mm
-                    WHERE mm.dorm_id = r.dorm_id
-                      AND mm.room_id = r.room_id
-                      AND (
-                            (mm.year = ? AND mm.month = ?)
-                            OR ((mm.year * 100 + mm.month) <= (? * 100 + ?))
-                          )
-                    ORDER BY
-                        CASE WHEN mm.year = ? AND mm.month = ? THEN 0 ELSE 1 END,
-                        mm.year DESC, mm.month DESC
-                    LIMIT 1
-               )
+               ON m.dorm_id = r.dorm_id
+              AND m.room_id = r.room_id
+              AND m.month = ?
+              AND m.year = ?
+              AND m.user_id = COALESCE(p.user_id, r.tenant_id)
     ";
 }
 
@@ -215,11 +204,11 @@ function find_user_room(mysqli $conn, int $user_id): ?array {
     if ($row) return $row;
 
     $st2 = $conn->prepare("SELECT m.dorm_id, r.room_id, r.room_number
-                           FROM rh_dorm_memberships m
-                           LEFT JOIN rh_rooms r ON r.tenant_id = m.user_id AND r.dorm_id = m.dorm_id
-                           WHERE m.user_id = ? AND m.approve_status = 'approved'
-                           ORDER BY r.room_id DESC, m.membership_id DESC
-                           LIMIT 1");
+                            FROM rh_dorm_memberships m
+                            LEFT JOIN rh_rooms r ON r.tenant_id = m.user_id AND r.dorm_id = m.dorm_id
+                            WHERE m.user_id = ? AND m.approve_status = 'approved'
+                            ORDER BY r.room_id DESC, m.membership_id DESC
+                            LIMIT 1");
     if (!$st2) return null;
     $st2->bind_param('i', $user_id);
     $st2->execute();
@@ -329,18 +318,16 @@ if ($action === 'get') {
                 COALESCE(s.water_rate, 0) AS water_rate,
                 COALESCE(s.electric_rate, 0) AS electric_rate
             FROM rh_payments p
-            LEFT JOIN rh_meter met ON met.room_id = p.room_id AND met.month = p.month AND met.year = p.year
+            LEFT JOIN rh_meter met ON met.room_id = p.room_id AND met.month = p.month AND met.year = p.year AND met.user_id = p.user_id
             LEFT JOIN rh_dorm_settings s ON s.dorm_id = p.dorm_id
             WHERE p.month = ?
               AND p.year = ?
-              AND (
-                    (p.user_id = ?)
-                    OR (p.room_id = ?)
-                  )
-            ORDER BY CASE WHEN p.user_id = ? THEN 0 ELSE 1 END, p.payment_id DESC
+              AND p.room_id = ?
+              AND p.user_id = ?
+            ORDER BY p.payment_id DESC
             LIMIT 1";
     $st = $conn->prepare($sql);
-    $st->bind_param('iiiii', $month, $year, $user_id, $room_id, $user_id);
+    $st->bind_param('iiii', $month, $year, $room_id, $user_id);
     $st->execute();
     $p = $st->get_result()->fetch_assoc();
     $st->close();
@@ -405,11 +392,11 @@ if ($action === 'pay') {
     if (!isset($_FILES['slip'])) jfail('กรุณาแนบไฟล์สลิป', 400);
 
     $stC = $conn->prepare("SELECT p.payment_id, p.dorm_id, p.room_id, r.room_number
-                           FROM rh_payments p
-                           JOIN rh_rooms r ON r.room_id = p.room_id
-                           WHERE p.payment_id = ?
-                             AND (p.user_id = ? OR r.tenant_id = ?)
-                           LIMIT 1");
+                            FROM rh_payments p
+                            JOIN rh_rooms r ON r.room_id = p.room_id
+                            WHERE p.payment_id = ?
+                              AND (p.user_id = ? OR r.tenant_id = ?)
+                            LIMIT 1");
     $stC->bind_param('iii', $payment_id, $user_id, $user_id);
     $stC->execute();
     $info = $stC->get_result()->fetch_assoc();
@@ -542,6 +529,7 @@ if ($action === 'getPaymentById') {
             p.payment_id,
             p.status AS payment_status,
             p.total_amount,
+            p.user_id,
             " . ($hasSlipColumn ? 'p.slip_image,' : 'NULL AS slip_image,') . "
             " . ($hasPaymentDateColumn ? 'p.payment_date,' : 'NULL AS payment_date,') . "
             m.water_old,
@@ -552,10 +540,7 @@ if ($action === 'getPaymentById') {
         LEFT JOIN rh_buildings b ON b.building_id = r.building_id
         LEFT JOIN rh_users u ON u.user_id = r.tenant_id
         LEFT JOIN rh_payments p
-               ON p.dorm_id = r.dorm_id
-              AND p.room_id = r.room_id
-              AND p.month = ?
-              AND p.year = ?
+               ON p.payment_id = ?
         " . latest_meter_join_sql() . "
         WHERE r.dorm_id = ?
           AND r.room_id = ?
@@ -563,11 +548,9 @@ if ($action === 'getPaymentById') {
 
     $stmt = $conn->prepare($sql);
     $stmt->bind_param(
-        'iiiiiiiiii',
+        'iiiii',
+        $payment_id,
         $month, $year,
-        $year, $month,
-        $year, $month,
-        $year, $month,
         $dorm_id, $room_id
     );
     $stmt->execute();
@@ -576,12 +559,17 @@ if ($action === 'getPaymentById') {
 
     if (!$row) jfail('ไม่พบข้อมูลบิล');
 
+    $wOld = $row['water_old'] ?? 0;
+    $wNew = $row['water_new'] ?? 0;
+    $eOld = $row['elec_old'] ?? 0;
+    $eNew = $row['elec_new'] ?? 0;
+
     $parts = calc_bill_parts(
         $row['base_rent'] ?? 0,
-        $row['water_old'] ?? 0,
-        $row['water_new'] ?? 0,
-        $row['elec_old'] ?? 0,
-        $row['elec_new'] ?? 0,
+        $wOld,
+        $wNew,
+        $eOld,
+        $eNew,
         $settings['water_rate'],
         $settings['electric_rate']
     );
@@ -673,18 +661,23 @@ if ($action === 'bulk_send') {
             continue;
         }
 
-        $stM = $conn->prepare('SELECT water_old, water_new, elec_old, elec_new FROM rh_meter WHERE dorm_id=? AND room_id=? AND month=? AND year=? LIMIT 1');
-        $stM->bind_param('iiii', $dorm_id, $room_id, $month, $year);
+        $stM = $conn->prepare('SELECT water_old, water_new, elec_old, elec_new FROM rh_meter WHERE dorm_id=? AND room_id=? AND month=? AND year=? AND user_id=? LIMIT 1');
+        $stM->bind_param('iiiii', $dorm_id, $room_id, $month, $year, $user_id);
         $stM->execute();
         $m = $stM->get_result()->fetch_assoc() ?: [];
         $stM->close();
 
+        $wOld = $m['water_old'] ?? 0;
+        $wNew = $m['water_new'] ?? 0;
+        $eOld = $m['elec_old'] ?? 0;
+        $eNew = $m['elec_new'] ?? 0;
+
         $parts = calc_bill_parts(
             $baseRent,
-            $m['water_old'] ?? 0,
-            $m['water_new'] ?? 0,
-            $m['elec_old'] ?? 0,
-            $m['elec_new'] ?? 0,
+            $wOld,
+            $wNew,
+            $eOld,
+            $eNew,
             $settings['water_rate'],
             $settings['electric_rate']
         );
@@ -750,17 +743,16 @@ if ($action === 'list') {
               AND p.room_id = r.room_id
               AND p.month = ?
               AND p.year = ?
+              AND p.user_id = r.tenant_id
         " . latest_meter_join_sql() . "
         WHERE r.dorm_id = ?
         ORDER BY COALESCE(b.building_name, ''), r.floor ASC, r.room_number ASC";
 
     $stmt = $conn->prepare($sql);
     $stmt->bind_param(
-        'iiiiiiiii',
+        'iiiii', 
         $month, $year,
-        $year, $month,
-        $year, $month,
-        $year, $month,
+        $month, $year,
         $dorm_id
     );
     $stmt->execute();
@@ -768,12 +760,17 @@ if ($action === 'list') {
 
     $rows = [];
     while ($row = $res->fetch_assoc()) {
+        $wOld = $row['water_old'] ?? 0;
+        $wNew = $row['water_new'] ?? 0;
+        $eOld = $row['elec_old'] ?? 0;
+        $eNew = $row['elec_new'] ?? 0;
+
         $parts = calc_bill_parts(
             $row['base_rent'] ?? 0,
-            $row['water_old'] ?? 0,
-            $row['water_new'] ?? 0,
-            $row['elec_old'] ?? 0,
-            $row['elec_new'] ?? 0,
+            $wOld,
+            $wNew,
+            $eOld,
+            $eNew,
             $settings['water_rate'],
             $settings['electric_rate']
         );
@@ -827,7 +824,6 @@ if ($action === 'list') {
     jok(['data' => $rows]);
 }
 
-// --- แก้ไขจุดที่ 2: ปรับ set_status ให้รองรับแค่ ชำระแล้ว และ ค้างชำระ ---
 if ($action === 'set_status') {
     $dorm_id = intval(reqv('dorm_id', 0));
     $room_id = intval(reqv('room_id', 0));
@@ -839,14 +835,13 @@ if ($action === 'set_status') {
         jfail('ข้อมูลไม่ครบ');
     }
 
-    // ปรับ Map ให้รองรับแค่ 2 สถานะหลัก
     $statusMap = [
         'paid'   => 'verified',
         'unpaid' => 'pending'
     ];
     $newStatus = $statusMap[$status_key] ?? 'pending';
 
-    $st = $conn->prepare('SELECT payment_id, user_id FROM rh_payments WHERE dorm_id=? AND room_id=? AND month=? AND year=? ORDER BY payment_id DESC LIMIT 1');
+    $st = $conn->prepare('SELECT p.payment_id, p.user_id FROM rh_payments p JOIN rh_rooms r ON p.room_id = r.room_id AND p.user_id = r.tenant_id WHERE p.dorm_id=? AND p.room_id=? AND p.month=? AND p.year=? ORDER BY p.payment_id DESC LIMIT 1');
     $st->bind_param('iiii', $dorm_id, $room_id, $month, $year);
     $st->execute();
     $payment = $st->get_result()->fetch_assoc();
@@ -877,4 +872,40 @@ if ($action === 'set_status') {
     jok(['message' => 'อัปเดตสำเร็จ ✅']);
 }
 
+if ($action === 'list_user_history') {
+    $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : intval(reqv('user_id', 0));
+
+    if ($userId <= 0) {
+        jfail('UserId is missing or 0');
+    }
+
+    $sql = "SELECT p.*, r.room_number, b.building_name
+            FROM rh_payments p
+            LEFT JOIN rh_rooms r ON r.room_id = p.room_id
+            LEFT JOIN rh_buildings b ON b.building_id = r.building_id
+            WHERE p.user_id = ? 
+            ORDER BY p.year DESC, p.month DESC, p.payment_id DESC";
+    
+    $st = $conn->prepare($sql);
+    $st->bind_param('i', $userId);
+    $st->execute();
+    $res = $st->get_result();
+    
+    $rows = [];
+    while ($row = $res->fetch_assoc()) {
+        $stt = map_status($row['status'], $row['month'], $row['year'], true); 
+        $rows[] = [
+            'month' => $row['month'],
+            'year' => $row['year'],
+            'total' => $row['total_amount'],
+            'status_label' => $stt['label'],
+            'status_color' => $stt['color'],
+            'room_number' => $row['room_number'] ?? '-'
+        ];
+    }
+    $st->close();
+    jok(['data' => $rows]);
+}
+
 jfail('ไม่พบ Action', 400);
+?>

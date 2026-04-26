@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../config.dart';
 import 'bill_detail_page.dart';
 
-// --- 1. Data Model (คงเดิม) ---
+// --- 1. Data Model ---
 class BillItem {
   final int roomId, dormId, floor, month, year;
   final String roomNumber, building, dueDate, statusKey, statusLabel, statusColor;
@@ -111,6 +111,10 @@ class _BillAdminPageState extends State<BillAdminPage> {
   static const double fDetail = 13.0;
   static const double fCaption = 11.0;
 
+  // เพิ่ม ScrollController และตัวแปรสถานะ
+  final ScrollController _scrollController = ScrollController();
+  bool _showBackToTop = false;
+
   int dormId = 0, userId = 0;
   bool loading = true;
   String selectedStatusKey = "all";
@@ -147,7 +151,31 @@ class _BillAdminPageState extends State<BillAdminPage> {
     final now = DateTime.now();
     selectedMonth = now.month;
     selectedYear = now.year;
+
+    // เพิ่ม Listener ตรวจสอบการเลื่อน
+    _scrollController.addListener(() {
+      if (_scrollController.offset > 300) {
+        if (!_showBackToTop) setState(() => _showBackToTop = true);
+      } else {
+        if (_showBackToTop) setState(() => _showBackToTop = false);
+      }
+    });
+
     _init();
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -227,7 +255,6 @@ class _BillAdminPageState extends State<BillAdminPage> {
 
     if (confirm != true) return;
 
-    // เช็คเฉพาะห้องที่มีผู้เช่า (เพราะเรากรองห้องว่างออกไปแล้วใน UI)
     List<BillItem> incompleteRooms = items.where((it) => it.tenantId != null && (it.waterUnit == 0 || it.elecUnit == 0)).toList();
 
     if (incompleteRooms.isNotEmpty) {
@@ -245,7 +272,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
                 const SizedBox(height: 20),
                 const Text("ยังส่งบิลไม่ได้", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cTextMain)),
                 const SizedBox(height: 8),
-                Text("เดือน ${_getMonthFull(selectedMonth)} $selectedYear ยังมีห้องที่ไม่ได้กรอกค่าน้ำ/ค่าไฟ", textAlign: TextAlign.center, style: const TextStyle(fontSize: fBody, color: Colors.black54)),
+                Text("เดือน ${_getMonthFull(selectedMonth)} $selectedYear ยังมีห้องที่ไม่ได้กรอก\nค่าน้ำ/ค่าไฟ", textAlign: TextAlign.center, style: const TextStyle(fontSize: fBody, color: Colors.black54)),
                 const SizedBox(height: 20),
                 Container(
                   constraints: const BoxConstraints(maxHeight: 200),
@@ -292,7 +319,9 @@ class _BillAdminPageState extends State<BillAdminPage> {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white, borderRadius: BorderRadius.circular(15),
-        border: isDataMissing ? Border.all(color: Colors.red.shade400, width: 1.5) : Border.all(color: Colors.transparent, width: 1.5),
+        border: isDataMissing 
+            ? Border.all(color: Colors.red.shade400, width: 1.5) 
+            : Border.all(color: Colors.transparent, width: 1.5),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: InkWell(
@@ -307,9 +336,25 @@ class _BillAdminPageState extends State<BillAdminPage> {
             children: [
               Row(
                 children: [
-                  Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: isDataMissing ? Colors.red.shade50 : sColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.meeting_room_rounded, color: isDataMissing ? Colors.red : sColor, size: 24)),
+                  Container(
+                    padding: const EdgeInsets.all(10), 
+                    decoration: BoxDecoration(
+                      color: sColor.withOpacity(0.1), 
+                      borderRadius: BorderRadius.circular(12)
+                    ), 
+                    child: Icon(Icons.meeting_room_rounded, color: sColor, size: 24)
+                  ),
                   const SizedBox(width: 15),
-                  Expanded(child: Text("ห้อง ${it.roomNumber}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: fHeader, color: cTextMain))),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("ห้อง ${it.roomNumber}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: fHeader, color: cTextMain)),
+                        if (it.fullName != null)
+                          Text(it.fullName!, style: const TextStyle(fontSize: fCaption, color: Colors.grey)),
+                      ],
+                    )
+                  ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -324,7 +369,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
               Row(
                 children: [
                   _badge(isSent ? "ส่งบิลแล้ว" : "ยังไม่ส่งบิล", isSent ? const Color(0xFF1976D2) : const Color(0xFFF57C00), isSent ? Icons.send : Icons.hourglass_empty),
-                  if (isDataMissing) ...[const SizedBox(width: 8), _badge("ข้อมูลไม่ครบ", Colors.red.shade700, Icons.priority_high_rounded)],
+                  if (isDataMissing) ...[const SizedBox(width: 8), _badge("รอจดมิเตอร์", Colors.red.shade700, Icons.edit_note_rounded)],
                   if (it.slipImage != null && it.slipImage!.isNotEmpty) ...[const SizedBox(width: 8), _badge("แจ้งชำระแล้ว", const Color(0xFF388E3C), Icons.check_circle_outline)],
                   const Spacer(),
                   const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
@@ -339,12 +384,11 @@ class _BillAdminPageState extends State<BillAdminPage> {
 
   @override
   Widget build(BuildContext context) {
-    // กรองเฉพาะห้องที่มีผู้เช่า (tenantId ไม่เป็น null)
     final filteredItems = items.where((it) {
       bool bOk = selectedBuilding == "ทั้งหมด" || it.building == selectedBuilding;
       bool fOk = selectedFloor == "ทั้งหมด" || it.floor.toString() == selectedFloor;
-      bool hasTenant = it.tenantId != null && it.statusKey != "no_tenant";
-      return bOk && fOk && hasTenant;
+      bool hasActiveTenant = it.tenantId != null && it.statusKey != "no_tenant";
+      return bOk && fOk && hasActiveTenant;
     }).toList();
 
     Map<String, List<BillItem>> groupedByBuilding = {};
@@ -358,9 +402,29 @@ class _BillAdminPageState extends State<BillAdminPage> {
         title: const Text("จัดการบิล", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader)),
         actions: [IconButton(icon: const Icon(Icons.send_rounded, color: cIcon, size: 22), onPressed: bulkSendBills)],
       ),
+      // เพิ่มปุ่ม FloatingActionButton
+      floatingActionButton: _showBackToTop
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 80.0),
+              child: FloatingActionButton(
+                onPressed: _scrollToTop,
+                backgroundColor: cIcon,
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.arrow_upward_rounded, 
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: fetchBills, color: cTextMain,
         child: CustomScrollView(
+          controller: _scrollController, // ผูกคอนโทรลเลอร์ที่นี่
           slivers: [
             SliverToBoxAdapter(child: Column(children: [_buildClassicFilters(), _buildStatusScroll()])),
             if (loading) const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: cTextMain, strokeWidth: 2)))

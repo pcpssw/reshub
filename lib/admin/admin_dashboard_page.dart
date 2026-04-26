@@ -92,7 +92,7 @@ class _PlatformDashboardPageState extends State<PlatformDashboardPage> {
         ),
         title: const Text(
           "สรุปภาพรวม",
-          style: TextStyle(fontWeight: FontWeight.w900, color: cTextMain, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.w900, color: cTextMain, fontSize: 16),
         ),
         centerTitle: true,
       ),

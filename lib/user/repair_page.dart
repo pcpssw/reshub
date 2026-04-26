@@ -48,7 +48,7 @@ Color repairTypeColor(String type) {
     case "น้ำ":
       return const Color(0xFF0288D1);
     case "เครื่องใช้":
-      return const Color(0xFF009688); 
+      return const Color.fromARGB(255, 236, 137, 71); 
     case "อื่นๆ":
       return const Color(0xFF455A64);
     default:

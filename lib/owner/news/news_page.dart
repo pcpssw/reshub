@@ -380,9 +380,8 @@ class _AnnouncementAdminPageState extends State<AnnouncementAdminPage> {
           IconButton(
             onPressed: () => _goToForm(),
             icon: const Icon(
-              Icons.add_circle_rounded,
-              color: cDark,
-              size: 28,
+              Icons.add_circle_outline,
+              size: 20,
             ),
             tooltip: 'เพิ่มข้อมูล',
           ),

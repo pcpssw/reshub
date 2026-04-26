@@ -465,7 +465,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           _sectionLabel("ข้อมูลบัญชี"),
                           _field(
                             userCtrl,
-                            "Username",
+                            "ชื่อผู้ใช้งาน",
                             Icons.alternate_email,
                             sErr: serverUserError,
                           ),

@@ -23,8 +23,8 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
   static const Color cDark = Color(0xFF523D2D);     // น้ำตาลไอคอน
 
   // 📏 Typography System
-  static const double fTitle   = 16.0; 
-  static const double fHeader  = 14.0; 
+  static const double fTitle   = 14.0; 
+  static const double fHeader  = 16.0; 
   static const double fBody    = 13.0; 
   static const double fCaption = 11.0;
 
@@ -171,7 +171,7 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: cTextMain),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("เพิ่มข้อมูลหอพัก", style: TextStyle(fontWeight: FontWeight.w900, color: cTextMain, fontSize: 18)),
+        title: const Text("เพิ่มหอพัก", style: TextStyle(fontWeight: FontWeight.w900, color: cTextMain, fontSize: 16)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -292,7 +292,7 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
                   ),
                   child: saving
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                      : const Text("เพิ่มข้อมูลหอพัก", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                      : const Text("เพิ่มหอพัก", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                 ),
               ),
               const SizedBox(height: 40),

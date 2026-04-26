@@ -79,8 +79,8 @@ class _RepairAdminPageState extends State<RepairAdminPage> {
     if (type.contains("น้ำ") || type.contains("ประปา")) {
       return const Color(0xFF0288D1);
     }
-    if (type.contains("แอร์")) return const Color(0xFF009688);
-    if (type.contains("เฟอร์นิเจอร์")) return const Color(0xFF795548);
+    if (type.contains("เครื่องใช้")) return const Color.fromARGB(255, 236, 137, 71);
+    if (type.contains("อื่นๆ")) return const Color(0xFF795548);
     return const Color(0xFF455A64);
   }
 
@@ -103,8 +103,8 @@ class _RepairAdminPageState extends State<RepairAdminPage> {
     if (type.contains("น้ำ") || type.contains("ประปา")) {
       return Icons.water_drop_rounded;
     }
-    if (type.contains("แอร์")) return Icons.ac_unit_rounded;
-    if (type.contains("เฟอร์นิเจอร์")) return Icons.chair_rounded;
+    if (type.contains("เครื่องใช้")) return Icons.ac_unit_rounded;
+    if (type.contains("อื่นๆ")) return Icons.construction_rounded;
     return Icons.construction_rounded;
   }
 

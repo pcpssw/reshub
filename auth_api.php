@@ -56,36 +56,25 @@ function has_text(array $data, string $key): bool {
 
 function infer_auth_action(array $data): string {
     $action = trim((string)($data['action'] ?? ''));
-    if ($action !== '') {
-        return $action;
-    }
+    if ($action !== '') return $action;
 
     if (has_text($data, 'username') && has_text($data, 'password') && has_text($data, 'full_name') && has_text($data, 'phone') && has_text($data, 'dorm_code')) {
         return 'register';
     }
-
     if (has_text($data, 'dorm_code') && !has_text($data, 'username') && !has_text($data, 'password') && !has_text($data, 'full_name') && !has_text($data, 'phone')) {
         return 'lookup_dorm';
     }
-
     if (has_text($data, 'username') && has_text($data, 'dorm_code') && has_text($data, 'phone') && has_text($data, 'new_password') && !has_text($data, 'user_id')) {
         return 'forgot_password';
     }
-
     if (has_text($data, 'username') && has_text($data, 'password') && !has_text($data, 'full_name') && !has_text($data, 'dorm_code')) {
         return 'login';
     }
-
     if (isset($data['user_id']) || isset($data['userId'])) {
-        if (has_text($data, 'old_password') && has_text($data, 'new_password')) {
-            return 'change_password';
-        }
-        if (has_text($data, 'username') || has_text($data, 'full_name') || has_text($data, 'phone')) {
-            return 'update';
-        }
+        if (has_text($data, 'old_password') && has_text($data, 'new_password')) return 'change_password';
+        if (has_text($data, 'username') || has_text($data, 'full_name') || has_text($data, 'phone')) return 'update';
         return 'get';
     }
-
     return '';
 }
 
@@ -97,10 +86,8 @@ function role_in_dorm_from_code(?string $roleCode): string {
 
 function format_mysql_date(?string $value): ?string {
     if ($value === null || trim($value) === '') return null;
-
     $ts = strtotime($value);
     if ($ts === false) return $value;
-
     return date('Y-m-d', $ts);
 }
 
@@ -110,7 +97,6 @@ function find_dorm_by_code(mysqli $conn, string $dormCode): ?array {
     $stmt->execute();
     $dorm = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-
     return $dorm ?: null;
 }
 
@@ -127,14 +113,8 @@ function load_profile_payload(mysqli $conn, int $userId): array {
 
     $stmt = $conn->prepare(
         "SELECT
-            m.membership_id,
-            m.dorm_id,
-            m.room_id,
-            m.role_code,
-            m.approve_status,
-            m.move_in_date,
-            m.move_out_date,
-            d.dorm_name
+            m.membership_id, m.dorm_id, m.room_id, m.role_code, m.approve_status,
+            m.move_in_date, m.move_out_date, d.dorm_name
          FROM rh_dorm_memberships m
          LEFT JOIN rh_dorms d ON d.dorm_id = m.dorm_id
          WHERE m.user_id=?
@@ -154,7 +134,6 @@ function load_profile_payload(mysqli $conn, int $userId): array {
     $stmt->close();
 
     $room = null;
-
     if ($membership) {
         $dormId = (int)($membership['dorm_id'] ?? 0);
         $roomId = (int)($membership['room_id'] ?? 0);
@@ -177,11 +156,7 @@ function load_profile_payload(mysqli $conn, int $userId): array {
             $stmt->close();
         }
 
-        if (
-            !$room &&
-            $dormId > 0 &&
-            (($membership['move_out_date'] ?? null) === null || trim((string)$membership['move_out_date']) === '')
-        ) {
+        if (!$room && $dormId > 0 && (($membership['move_out_date'] ?? null) === null || trim((string)$membership['move_out_date']) === '')) {
             $stmt = $conn->prepare(
                 "SELECT
                     r.room_id, r.room_number, r.floor, r.base_rent, r.status,
@@ -202,11 +177,13 @@ function load_profile_payload(mysqli $conn, int $userId): array {
     }
 
     $roleInDorm = $membership ? role_in_dorm_from_code($membership['role_code'] ?? null) : null;
-
+    $approveStatus = $membership['approve_status'] ?? null;
     $tenantStatus = 'waiting';
+
     if ($membership) {
         if (!empty($membership['move_out_date'])) {
             $tenantStatus = 'former';
+            $approveStatus = 'inactive'; 
         } elseif (($membership['approve_status'] ?? '') === 'approved') {
             $tenantStatus = 'active';
         }
@@ -222,7 +199,7 @@ function load_profile_payload(mysqli $conn, int $userId): array {
 
         'membership_id' => $membership ? (int)$membership['membership_id'] : 0,
         'role_in_dorm' => $roleInDorm,
-        'approve_status' => $membership['approve_status'] ?? null,
+        'approve_status' => $approveStatus,
         'tenant_status' => $tenantStatus,
 
         'dorm_id' => isset($membership['dorm_id']) ? (int)$membership['dorm_id'] : null,
@@ -254,30 +231,16 @@ try {
 
     if ($action === 'lookup_dorm') {
         $dormCode = trim((string)($data['dorm_code'] ?? ''));
-        if ($dormCode === '') {
-            auth_json(['success' => false, 'message' => 'กรุณากรอกโค้ดหอพัก'], 400);
-        }
-
+        if ($dormCode === '') auth_json(['success' => false, 'message' => 'กรุณากรอกโค้ดหอพัก'], 400);
         $dorm = find_dorm_by_code($conn, $dormCode);
-        if (!$dorm) {
-            auth_json(['success' => false, 'message' => 'โค้ดหอพักไม่ถูกต้อง'], 404);
-        }
-
-        auth_json([
-            'success' => true,
-            'dorm_id' => (int)$dorm['dorm_id'],
-            'dorm_name' => $dorm['dorm_name'],
-            'dorm_code' => $dorm['dorm_code'],
-        ]);
+        if (!$dorm) auth_json(['success' => false, 'message' => 'โค้ดหอพักไม่ถูกต้อง'], 404);
+        auth_json(['success' => true, 'dorm_id' => (int)$dorm['dorm_id'], 'dorm_name' => $dorm['dorm_name'], 'dorm_code' => $dorm['dorm_code']]);
     }
 
     if ($action === 'login') {
         $username = trim((string)($data['username'] ?? ''));
         $password = (string)($data['password'] ?? '');
-
-        if ($username === '' || $password === '') {
-            auth_json(['success' => false, 'message' => 'กรอกข้อมูลไม่ครบ'], 400);
-        }
+        if ($username === '' || $password === '') auth_json(['success' => false, 'message' => 'กรอกข้อมูลไม่ครบ'], 400);
 
         $stmt = $conn->prepare('SELECT user_id, username, password, full_name, user_level FROM rh_users WHERE username=? LIMIT 1');
         $stmt->bind_param('s', $username);
@@ -291,33 +254,17 @@ try {
 
         $userId = (int)$user['user_id'];
         if (($user['user_level'] ?? '') === 'a') {
-            auth_json([
-                'success' => true,
-                'user' => [
-                    'user_id' => $userId,
-                    'username' => $user['username'],
-                    'full_name' => $user['full_name'],
-                    'platform_role' => 'platform_admin',
-                    'approve_status' => 'approved',
-                    'role_in_dorm' => 'admin',
-                ],
-            ]);
+            auth_json(['success' => true, 'user' => ['user_id' => $userId, 'username' => $user['username'], 'full_name' => $user['full_name'], 'platform_role' => 'platform_admin', 'approve_status' => 'approved', 'role_in_dorm' => 'admin']]);
         }
 
         $profile = load_profile_payload($conn, $userId);
-        auth_json([
-            'success' => true,
-            'user' => [
-                'user_id' => $profile['user_id'],
-                'username' => $profile['username'],
-                'full_name' => $profile['full_name'],
-                'platform_role' => $profile['platform_role'],
-                'dorm_id' => $profile['dorm_id'],
-                'dorm_name' => $profile['dorm_name'],
-                'role_in_dorm' => $profile['role_in_dorm'],
-                'approve_status' => $profile['approve_status'],
-            ],
-        ]);
+
+        // 🛑 แก้ไขจุดที่ 1: ดักคนเก่าให้ขึ้นว่ารหัสผิด (401) เพื่อความเนียน
+        if ($profile['tenant_status'] === 'former' || $profile['approve_status'] === 'inactive' || $profile['approve_status'] === 'rejected') {
+            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'], 401);
+        }
+
+        auth_json(['success' => true, 'user' => $profile]);
     }
 
     if ($action === 'register') {
@@ -327,57 +274,34 @@ try {
         $password = trim((string)($data['password'] ?? ''));
         $dormCode = trim((string)($data['dorm_code'] ?? ''));
 
-        if ($fullName === '' || $phone === '' || $username === '' || $password === '' || $dormCode === '') {
-            auth_json(['success' => false, 'message' => 'กรุณากรอกข้อมูลให้ครบ'], 400);
-        }
+        if ($fullName === '' || $phone === '' || $username === '' || $password === '' || $dormCode === '') auth_json(['success' => false, 'message' => 'กรุณากรอกข้อมูลให้ครบ'], 400);
 
         $conn->begin_transaction();
         try {
             $dorm = find_dorm_by_code($conn, $dormCode);
-            if (!$dorm) {
-                throw new Exception('ไม่พบโค้ดหอพักนี้');
-            }
+            if (!$dorm) throw new Exception('ไม่พบโค้ดหอพักนี้');
             $dormId = (int)$dorm['dorm_id'];
 
             $stmtCheck = $conn->prepare('SELECT user_id FROM rh_users WHERE username=? LIMIT 1');
-            $stmtCheck->bind_param('s', $username);
-            $stmtCheck->execute();
-            $dup = $stmtCheck->get_result()->fetch_assoc();
+            $stmtCheck->bind_param('s', $username); $stmtCheck->execute();
+            if ($stmtCheck->get_result()->fetch_assoc()) throw new Exception('Username นี้ถูกใช้งานแล้ว');
             $stmtCheck->close();
-
-            if ($dup) {
-                throw new Exception('Username นี้ถูกใช้งานแล้ว');
-            }
 
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $conn->prepare("INSERT INTO rh_users (username, password, full_name, phone, user_level) VALUES (?, ?, ?, ?, 't')");
-            $stmt->bind_param('ssss', $username, $hash, $fullName, $phone);
-            $stmt->execute();
-            $userId = (int)$conn->insert_id;
-            $stmt->close();
+            $stmt->bind_param('ssss', $username, $hash, $fullName, $phone); $stmt->execute();
+            $userId = (int)$conn->insert_id; $stmt->close();
 
             $stmt2 = $conn->prepare("INSERT INTO rh_dorm_memberships (user_id, dorm_id, role_code, approve_status) VALUES (?, ?, 't', 'pending')");
-            $stmt2->bind_param('ii', $userId, $dormId);
-            $stmt2->execute();
-            $stmt2->close();
+            $stmt2->bind_param('ii', $userId, $dormId); $stmt2->execute(); $stmt2->close();
 
             $stmtNoti = $conn->prepare('INSERT INTO rh_notifications (user_id, dorm_id, type_id, message) VALUES (?, ?, 1, ?)');
-            $msg = 'มีผู้ขอเข้าร่วมหอพัก: ' . $fullName . ' (' . $dorm['dorm_name'] . ')';
-            $stmtNoti->bind_param('iis', $userId, $dormId, $msg);
-            $stmtNoti->execute();
-            $stmtNoti->close();
+            $msg = 'มีผู้ขอเข้าร่วมหอพัก: ' . $fullName;
+            $stmtNoti->bind_param('iis', $userId, $dormId, $msg); $stmtNoti->execute(); $stmtNoti->close();
 
             $conn->commit();
-            auth_json([
-                'success' => true,
-                'user_id' => $userId,
-                'dorm_id' => $dormId,
-                'dorm_name' => $dorm['dorm_name'],
-            ]);
-        } catch (Throwable $e) {
-            $conn->rollback();
-            auth_json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
+            auth_json(['success' => true, 'user_id' => $userId, 'dorm_id' => $dormId, 'dorm_name' => $dorm['dorm_name']]);
+        } catch (Throwable $e) { $conn->rollback(); auth_json(['success' => false, 'message' => $e->getMessage()], 500); }
     }
 
     if ($action === 'forgot_password') {
@@ -386,181 +310,61 @@ try {
         $phone = trim((string)($data['phone'] ?? ''));
         $newPassword = trim((string)($data['new_password'] ?? ''));
 
-        if ($username === '' || $dormCode === '' || $phone === '' || $newPassword === '') {
-            auth_json(['success' => false, 'message' => 'กรุณากรอกข้อมูลให้ครบ'], 400);
-        }
-
         $conn->begin_transaction();
         try {
-            $stmt = $conn->prepare(
-                'SELECT u.user_id
-                 FROM rh_users u
-                 JOIN rh_dorm_memberships m ON m.user_id = u.user_id
-                 JOIN rh_dorms d ON d.dorm_id = m.dorm_id
-                 WHERE u.username = ? AND u.phone = ? AND d.dorm_code = ?
-                 LIMIT 1'
-            );
-            $stmt->bind_param('sss', $username, $phone, $dormCode);
-            $stmt->execute();
-            $row = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            // 🛑 แก้ไขจุดที่ 2: เพิ่มเงื่อนไขสถานะใน Query เพื่อไม่ให้คนเก่ามาเปลี่ยนรหัสได้
+            $stmt = $conn->prepare('
+                SELECT u.user_id 
+                FROM rh_users u 
+                JOIN rh_dorm_memberships m ON m.user_id = u.user_id 
+                JOIN rh_dorms d ON d.dorm_id = m.dorm_id 
+                WHERE u.username = ? 
+                  AND u.phone = ? 
+                  AND d.dorm_code = ? 
+                  AND m.approve_status = "approved" 
+                  AND m.move_out_date IS NULL 
+                LIMIT 1
+            ');
+            $stmt->bind_param('sss', $username, $phone, $dormCode); $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc(); $stmt->close();
 
-            if (!$row) {
-                throw new Exception('ข้อมูลไม่ถูกต้อง ไม่สามารถเปลี่ยนรหัสผ่านได้');
-            }
+            if (!$row) throw new Exception('ข้อมูลไม่ถูกต้อง');
 
-            $userId = (int)$row['user_id'];
             $hash = password_hash($newPassword, PASSWORD_DEFAULT);
             $upd = $conn->prepare('UPDATE rh_users SET password = ? WHERE user_id = ?');
-            $upd->bind_param('si', $hash, $userId);
-            $upd->execute();
-            $upd->close();
+            $upd->bind_param('si', $hash, $row['user_id']); $upd->execute(); $upd->close();
 
             $conn->commit();
             auth_json(['success' => true, 'message' => 'เปลี่ยนรหัสผ่านเรียบร้อย']);
-        } catch (Throwable $e) {
-            $conn->rollback();
-            auth_json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
+        } catch (Throwable $e) { $conn->rollback(); auth_json(['success' => false, 'message' => $e->getMessage()], 500); }
     }
 
     if (in_array($action, ['check_status', 'get', 'profile'], true)) {
         $userId = (int)($data['user_id'] ?? $data['userId'] ?? 0);
-        if ($userId <= 0) {
-            auth_json(['success' => false, 'message' => 'missing user_id'], 400);
-        }
-
+        if ($userId <= 0) auth_json(['success' => false, 'message' => 'missing user_id'], 400);
         $profile = load_profile_payload($conn, $userId);
-        auth_json([
-            'success' => true,
-            'ok' => true,
-            'message' => 'โหลดข้อมูลสำเร็จ',
-            'data' => $profile,
-            'user' => [
-                'user_id' => $profile['user_id'],
-                'username' => $profile['username'],
-                'full_name' => $profile['full_name'],
-                'phone' => $profile['phone'],
-                'platform_role' => $profile['platform_role'],
-                'role_in_dorm' => $profile['role_in_dorm'],
-                'approve_status' => $profile['approve_status'] ?? 'pending',
-                'tenant_status' => $profile['tenant_status'] ?? 'waiting',
-                'dorm_id' => (int)($profile['dorm_id'] ?? 0),
-                'dorm_name' => $profile['dorm_name'] ?? null,
-                'room_id' => (int)($profile['room_id'] ?? 0),
-                'room_number' => $profile['room_number'] ?? null,
-                'move_in_date' => $profile['move_in_date'] ?? null,
-                'move_out_date' => $profile['move_out_date'] ?? null,
-            ],
-            'user_id' => $profile['user_id'],
-            'username' => $profile['username'],
-            'full_name' => $profile['full_name'],
-            'phone' => $profile['phone'],
-            'user_level' => $profile['user_level'],
-            'platform_role' => $profile['platform_role'],
-            'role_in_dorm' => $profile['role_in_dorm'],
-            'approve_status' => $profile['approve_status'],
-            'tenant_status' => $profile['tenant_status'],
-            'dorm_id' => $profile['dorm_id'],
-            'dorm_name' => $profile['dorm_name'],
-            'room_id' => $profile['room_id'],
-            'room_number' => $profile['room_number'],
-            'floor' => $profile['floor'],
-            'room_status' => $profile['room_status'],
-            'base_rent' => $profile['base_rent'],
-            'building_id' => $profile['building_id'],
-            'building_name' => $profile['building_name'],
-            'building' => $profile['building'],
-            'room_type_id' => $profile['room_type_id'],
-            'room_type_name' => $profile['room_type_name'],
-            'move_in_date' => $profile['move_in_date'],
-            'move_out_date' => $profile['move_out_date'],
-        ]);
+        if ($profile['tenant_status'] === 'former') auth_json(['success' => false, 'message' => 'พ้นสภาพการใช้งาน'], 403);
+        auth_json(['success' => true, 'data' => $profile, 'user' => $profile]);
     }
 
     if ($action === 'change_password') {
         $userId = (int)($data['user_id'] ?? $data['userId'] ?? 0);
         $old = trim((string)($data['old_password'] ?? ''));
         $new = trim((string)($data['new_password'] ?? ''));
-
-        if ($userId <= 0) auth_json(['success' => false, 'message' => 'user_id ไม่ถูกต้อง'], 400);
-        if ($old === '' || $new === '') auth_json(['success' => false, 'message' => 'กรอกข้อมูลไม่ครบ'], 400);
-
         $stmt = $conn->prepare('SELECT password FROM rh_users WHERE user_id=? LIMIT 1');
-        $stmt->bind_param('i', $userId);
-        $stmt->execute();
-        $u = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$u || !password_verify($old, $u['password'])) {
-            auth_json(['success' => false, 'message' => 'รหัสผ่านเดิมไม่ถูกต้อง'], 401);
-        }
-
+        $stmt->bind_param('i', $userId); $stmt->execute(); $u = $stmt->get_result()->fetch_assoc(); $stmt->close();
+        if (!$u || !password_verify($old, $u['password'])) auth_json(['success' => false, 'message' => 'รหัสผ่านเดิมไม่ถูกต้อง'], 401);
         $hash = password_hash($new, PASSWORD_DEFAULT);
         $stmt = $conn->prepare('UPDATE rh_users SET password=? WHERE user_id=?');
-        $stmt->bind_param('si', $hash, $userId);
-        $stmt->execute();
-        $stmt->close();
-
+        $stmt->bind_param('si', $hash, $userId); $stmt->execute(); $stmt->close();
         auth_json(['success' => true, 'message' => 'เปลี่ยนรหัสผ่านสำเร็จ']);
     }
 
     if ($action === 'update') {
         $userId = (int)($data['user_id'] ?? $data['userId'] ?? 0);
-        $username = trim((string)($data['username'] ?? ''));
-        $fullName = trim((string)($data['full_name'] ?? ''));
-        $phone = trim((string)($data['phone'] ?? ''));
-
-        if ($userId <= 0) auth_json(['success' => false, 'message' => 'user_id ไม่ถูกต้อง'], 400);
-        if ($username === '' || $fullName === '' || $phone === '') {
-            auth_json(['success' => false, 'message' => 'กรอกข้อมูลไม่ครบ'], 400);
-        }
-
-        $stmt = $conn->prepare('SELECT user_id FROM rh_users WHERE username=? AND user_id<>? LIMIT 1');
-        $stmt->bind_param('si', $username, $userId);
-        $stmt->execute();
-        $dup = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if ($dup) {
-            auth_json(['success' => false, 'message' => 'username ถูกใช้แล้ว'], 409);
-        }
-
         $stmt = $conn->prepare('UPDATE rh_users SET username=?, full_name=?, phone=? WHERE user_id=?');
-        $stmt->bind_param('sssi', $username, $fullName, $phone, $userId);
-        $stmt->execute();
-        $stmt->close();
-
-        $profile = load_profile_payload($conn, $userId);
-        auth_json([
-            'success' => true,
-            'ok' => true,
-            'message' => 'โหลดข้อมูลสำเร็จ',
-            'data' => $profile,
-            'user_id' => $profile['user_id'],
-            'username' => $profile['username'],
-            'full_name' => $profile['full_name'],
-            'phone' => $profile['phone'],
-            'user_level' => $profile['user_level'],
-            'platform_role' => $profile['platform_role'],
-            'role_in_dorm' => $profile['role_in_dorm'],
-            'approve_status' => $profile['approve_status'],
-            'tenant_status' => $profile['tenant_status'],
-            'dorm_id' => $profile['dorm_id'],
-            'dorm_name' => $profile['dorm_name'],
-            'room_id' => $profile['room_id'],
-            'room_number' => $profile['room_number'],
-            'floor' => $profile['floor'],
-            'room_status' => $profile['room_status'],
-            'base_rent' => $profile['base_rent'],
-            'building_id' => $profile['building_id'],
-            'building_name' => $profile['building_name'],
-            'building' => $profile['building'],
-            'room_type_id' => $profile['room_type_id'],
-            'room_type_name' => $profile['room_type_name'],
-            'move_in_date' => $profile['move_in_date'],
-            'move_out_date' => $profile['move_out_date'],
-        ]);
+        $stmt->bind_param('sssi', $data['username'], $data['full_name'], $data['phone'], $userId); $stmt->execute(); $stmt->close();
+        auth_json(['success' => true, 'data' => load_profile_payload($conn, $userId)]);
     }
 
     auth_json(['success' => false, 'message' => 'Unknown action'], 400);

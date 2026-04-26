@@ -17,18 +17,17 @@ class ExpensePage extends StatefulWidget {
 }
 
 class _ExpensePageState extends State<ExpensePage> {
-  // 🎨 Palette ใหม่: สดใสและคมชัด (Deep Coffee & Cream)
-  static const Color cBg = Color(0xFFF4EFE6);       // ครีมสว่าง
-  static const Color cAccent = Color(0xFFDCD2C1);   // ครีมเข้ม
-  static const Color cTextMain = Color(0xFF2A1F17); // น้ำตาลเข้มจัด (คมชัด)
-  static const Color cDark = Color(0xFF523D2D);     // น้ำตาลไอคอน
+  static const Color cBg = Color(0xFFF4EFE6);       
+  static const Color cAccent = Color(0xFFDCD2C1);   
+  static const Color cTextMain = Color(0xFF2A1F17); 
+  static const Color cDark = Color(0xFF523D2D);     
 
-  // 📏 Typography
-  static const double fTitle = 18.0;
-  static const double fHeader = 15.0;
-  static const double fBody = 14.0;
-  static const double fDetail = 13.0;
-  static const double fCaption = 11.0;
+  // 📏 ปรับ Typography ให้เล็กลง (Compact)
+  static const double fTitle = 16.0;
+  static const double fHeader = 14.0;
+  static const double fBody = 13.0;
+  static const double fDetail = 12.0;
+  static const double fCaption = 10.0;
 
   int get thaiYear => selectedYear + 543;
   bool isMonthly = true;
@@ -69,7 +68,7 @@ class _ExpensePageState extends State<ExpensePage> {
     await fetchIncomeSummary();
   }
 
-Future<void> fetchIncomeSummary() async {
+  Future<void> fetchIncomeSummary() async {
     if (!mounted) return;
     setState(() { loading = true; loadError = null; });
     try {
@@ -88,25 +87,19 @@ Future<void> fetchIncomeSummary() async {
         setState(() {
           expectedIncome = _toDouble(data["expected_income"]) ?? 0;
           receivedIncome = _toDouble(data["received_income"]) ?? 0;
-          
-          // ตรวจสอบว่ามีก้อน breakdown แยกมาให้ไหม (ตามที่เขียนไว้ใน PHP บรรทัดที่ 332)
           final b = data["breakdown"] is Map ? data["breakdown"] : data;
-          
           breakdown = {
             "rent": _pickNumFromAny(b, ["rent", "rent_income"]),
-            // แก้ไข: เพิ่ม Key "water" และ "electric" ให้ตรงกับที่ PHP ส่งออกมาในบรรทัดที่ 335-337
             "water": _pickNumFromAny(b, ["water", "water_total", "water_income"]),
             "electric": _pickNumFromAny(b, ["electric", "electric_total", "electric_income"]),
           };
-          
-          // เก็บข้อมูลรายเดือนไว้สำหรับโหมด "รายปี"
           yearMonths = List<Map<String, dynamic>>.from(data["months"] ?? []);
         });
       } else {
         setState(() => loadError = data["message"] ?? "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์");
       }
     } catch (e) { 
-      setState(() => loadError = "เชื่อมต่อไม่ได้: ${e.toString()}"); 
+      setState(() => loadError = "เชื่อมต่อไม่ได้"); 
     } finally { 
       if (mounted) setState(() => loading = false); 
     }
@@ -148,13 +141,13 @@ Future<void> fetchIncomeSummary() async {
     return Scaffold(
       backgroundColor: cBg,
       appBar: AppBar(
-        toolbarHeight: 55, elevation: 0.5, backgroundColor: Colors.white, centerTitle: true,
-        iconTheme: const IconThemeData(color: cTextMain),
+        toolbarHeight: 50, elevation: 0.5, backgroundColor: Colors.white, centerTitle: true,
+        iconTheme: const IconThemeData(color: cTextMain, size: 22),
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left_rounded, size: 28),
+          icon: const Icon(Icons.chevron_left_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("สรุปการเงิน", style: TextStyle(color: cTextMain, fontWeight: FontWeight.w900, fontSize: 17)),
+        title: const Text("สรุปการเงิน", style: TextStyle(color: cTextMain, fontWeight: FontWeight.w900, fontSize: 16)),
       ),
       body: RefreshIndicator(
         onRefresh: fetchIncomeSummary,
@@ -168,32 +161,32 @@ Future<void> fetchIncomeSummary() async {
 
   Widget _buildBody() {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
         _buildTopSelector(),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         _buildHeroIncomeCard(),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         if (isMonthly) ...[
           const Text("สัดส่วนรายรับ", style: TextStyle(fontSize: fHeader, fontWeight: FontWeight.w900, color: cTextMain)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           _buildBreakdownCard(),
         ],
         if (!isMonthly) ...[
           Text("สถิติรายปี $thaiYear", style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.w900, color: cTextMain)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           _buildYearMetricToggle(),
-          const SizedBox(height: 16),
-          _buildYearMetricChart(),
-          const SizedBox(height: 24),
-          const Text("รายละเอียดรายเดือน", style: TextStyle(fontSize: fHeader, fontWeight: FontWeight.w900, color: cTextMain)),
           const SizedBox(height: 12),
+          _buildYearMetricChart(),
+          const SizedBox(height: 16),
+          const Text("รายละเอียดรายเดือน", style: TextStyle(fontSize: fHeader, fontWeight: FontWeight.w900, color: cTextMain)),
+          const SizedBox(height: 8),
           for (int m = 1; m <= 12; m++) ...[
             _buildYearMonthRow(m),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
           ],
         ],
-        const SizedBox(height: 40),
+        const SizedBox(height: 20),
       ],
     );
   }
@@ -201,102 +194,72 @@ Future<void> fetchIncomeSummary() async {
   Widget _buildTopSelector() {
     return Column(children: [
       Container(
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(color: cAccent.withOpacity(0.5), borderRadius: BorderRadius.circular(15)),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: cAccent.withOpacity(0.4), borderRadius: BorderRadius.circular(12)),
         child: Row(children: [ _toggleItem(0, "รายเดือน"), _toggleItem(1, "รายปี")]),
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 8),
       Row(children: [
-        if (isMonthly) Expanded(child: _dropdownWrapper(child: DropdownButton<int>(value: selectedMonth, isExpanded: true, style: const TextStyle(fontSize: fBody, color: cTextMain, fontWeight: FontWeight.w700), items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(monthsText[i]))), onChanged: (v) { setState(() => selectedMonth = v ?? selectedMonth); fetchIncomeSummary(); }))),
-        if (isMonthly) const SizedBox(width: 10),
-        Expanded(child: _dropdownWrapper(child: DropdownButton<int>(value: selectedYear, isExpanded: true, style: const TextStyle(fontSize: fBody, color: cTextMain, fontWeight: FontWeight.w700), items: [2024, 2025, 2026].map((y) => DropdownMenuItem(value: y, child: Text("${y + 543}"))).toList(), onChanged: (v) { setState(() => selectedYear = v ?? selectedYear); fetchIncomeSummary(); }))),
+        if (isMonthly) Expanded(child: _dropdownWrapper(child: DropdownButton<int>(value: selectedMonth, isExpanded: true, style: const TextStyle(fontSize: fDetail, color: cTextMain, fontWeight: FontWeight.w700), items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(monthsText[i]))), onChanged: (v) { setState(() => selectedMonth = v ?? selectedMonth); fetchIncomeSummary(); }))),
+        if (isMonthly) const SizedBox(width: 8),
+        Expanded(child: _dropdownWrapper(child: DropdownButton<int>(value: selectedYear, isExpanded: true, style: const TextStyle(fontSize: fDetail, color: cTextMain, fontWeight: FontWeight.w700), items: [2024, 2025, 2026].map((y) => DropdownMenuItem(value: y, child: Text("${y + 543}"))).toList(), onChanged: (v) { setState(() => selectedYear = v ?? selectedYear); fetchIncomeSummary(); }))),
       ]),
     ]);
   }
 
-  Widget _dropdownWrapper({required Widget child}) => Container(padding: const EdgeInsets.symmetric(horizontal: 12), height: 50, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: cAccent.withOpacity(0.8), width: 1.5)), child: DropdownButtonHideUnderline(child: child));
+  Widget _dropdownWrapper({required Widget child}) => Container(padding: const EdgeInsets.symmetric(horizontal: 10), height: 40, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: cAccent.withOpacity(0.6), width: 1.2)), child: DropdownButtonHideUnderline(child: child));
 
   Widget _toggleItem(int index, String label) {
     final active = (isMonthly && index == 0) || (!isMonthly && index == 1);
-    return Expanded(child: GestureDetector(onTap: () { setState(() => isMonthly = index == 0); fetchIncomeSummary(); }, child: AnimatedContainer(duration: const Duration(milliseconds: 250), padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: active ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(12), boxShadow: active ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : []), child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? cTextMain : cDark.withOpacity(0.6), fontWeight: FontWeight.w900, fontSize: fBody)))));
+    return Expanded(child: GestureDetector(onTap: () { setState(() => isMonthly = index == 0); fetchIncomeSummary(); }, child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(color: active ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(8)), child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? cTextMain : cDark.withOpacity(0.5), fontWeight: FontWeight.w900, fontSize: fDetail)))));
   }
 
   Widget _buildHeroIncomeCard() {
     final progress = (expectedIncome > 0 ? (receivedIncome / expectedIncome) : 0.0).clamp(0.0, 1.0);
     return Container(
-      padding: const EdgeInsets.all(28), 
-      decoration: BoxDecoration(color: cTextMain, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: cTextMain.withOpacity(0.15), blurRadius: 15, offset: const Offset(0, 8))]),
+      padding: const EdgeInsets.all(20), 
+      decoration: BoxDecoration(color: cTextMain, borderRadius: BorderRadius.circular(20)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(isMonthly ? "รายรับรวมเดือนนี้" : "รายรับรวมปี $thaiYear", style: const TextStyle(color: Colors.white70, fontSize: fBody, fontWeight: FontWeight.w600)),
+        Text(isMonthly ? "รายรับรวมเดือนนี้" : "รายรับรวมปี $thaiYear", style: const TextStyle(color: Colors.white70, fontSize: fDetail, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text("${money.format(receivedIncome)} ฿", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 16),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("เป้าหมายรายรับ ${money.format(expectedIncome)}", style: const TextStyle(color: Colors.white60, fontSize: fCaption)), Text("${(progress * 100).toStringAsFixed(1)}%", style: const TextStyle(color: Colors.white, fontSize: fCaption, fontWeight: FontWeight.w900))]),
         const SizedBox(height: 6),
-        Text("${money.format(receivedIncome)} ฿", style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-        const SizedBox(height: 20),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("เป้าหมายรายรับ ${money.format(expectedIncome)}", style: const TextStyle(color: Colors.white60, fontSize: fDetail, fontWeight: FontWeight.w500)), Text("${(progress * 100).toStringAsFixed(1)}%", style: const TextStyle(color: Colors.white, fontSize: fDetail, fontWeight: FontWeight.w900))]),
-        const SizedBox(height: 10),
-        ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: progress, backgroundColor: Colors.white12, color: cAccent, minHeight: 10)),
+        ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: progress, backgroundColor: Colors.white12, color: cAccent, minHeight: 6)),
       ]),
     );
   }
 
   Widget _buildYearMetricToggle() {
     return Container(
-      padding: const EdgeInsets.all(5), decoration: BoxDecoration(color: cAccent.withOpacity(0.5), borderRadius: BorderRadius.circular(15)),
+      padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: cAccent.withOpacity(0.4), borderRadius: BorderRadius.circular(12)),
       child: Row(children: [ _metricItem(YearMetric.income, "รายรับ"), _metricItem(YearMetric.water, "ค่าน้ำ"), _metricItem(YearMetric.electric, "ค่าไฟ")]),
     );
   }
 
   Widget _metricItem(YearMetric m, String label) {
     final active = yearMetric == m;
-    return Expanded(child: GestureDetector(onTap: () => setState(() => yearMetric = m), child: AnimatedContainer(duration: const Duration(milliseconds: 250), padding: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: active ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(12)), child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? cTextMain : cDark.withOpacity(0.6), fontWeight: FontWeight.w900, fontSize: fDetail)))));
+    return Expanded(child: GestureDetector(onTap: () => setState(() => yearMetric = m), child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(color: active ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(8)), child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? cTextMain : cDark.withOpacity(0.5), fontWeight: FontWeight.w900, fontSize: fDetail)))));
   }
 
   Widget _buildYearMetricChart() {
-    Color barColor;
-    if (yearMetric == YearMetric.income) barColor = const Color(0xFF1565C0);
-    else if (yearMetric == YearMetric.water) barColor = const Color(0xFF0288D1);
-    else barColor = const Color(0xFFE65100);
-
+    Color barColor = yearMetric == YearMetric.income ? const Color(0xFF1565C0) : (yearMetric == YearMetric.water ? const Color(0xFF0288D1) : const Color(0xFFE65100));
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]),
-      child: Column(
-        children: [
-          AspectRatio(
-            aspectRatio: 1.6,
-            child: BarChart(BarChartData(
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipColor: (_) => Colors.white,
-                  tooltipMargin: 8,
-                  tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                    return BarTooltipItem(
-                      "${monthsText[group.x.toInt() - 1]}\n",
-                      const TextStyle(color: cTextMain, fontWeight: FontWeight.w900, fontSize: fDetail),
-                      children: [
-                        TextSpan(
-                          text: "${money.format(rod.toY)} ฿",
-                          style: TextStyle(color: barColor, fontWeight: FontWeight.w900, fontSize: fDetail),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              maxY: _maxSingleYearY(yearMetric == YearMetric.income ? _yearTotal : (yearMetric == YearMetric.water ? _yearWater : _yearElectric)),
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              titlesData: _titlesData(),
-              barGroups: List.generate(12, (i) {
-                double value = 0;
-                if (yearMetric == YearMetric.income) value = _yearTotal(i + 1);
-                else if (yearMetric == YearMetric.water) value = _yearWater(i + 1);
-                else value = _yearElectric(i + 1);
-                return BarChartGroupData(x: i + 1, barRods: [BarChartRodData(toY: value, color: barColor, width: 12, borderRadius: BorderRadius.circular(4))]);
-              }),
-            )),
-          ),
-        ],
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: AspectRatio(
+        aspectRatio: 1.8,
+        child: BarChart(BarChartData(
+          maxY: _maxSingleYearY(yearMetric == YearMetric.income ? _yearTotal : (yearMetric == YearMetric.water ? _yearWater : _yearElectric)),
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          titlesData: _titlesData(),
+          barGroups: List.generate(12, (i) {
+            double value = yearMetric == YearMetric.income ? _yearTotal(i + 1) : (yearMetric == YearMetric.water ? _yearWater(i + 1) : _yearElectric(i + 1));
+            return BarChartGroupData(x: i + 1, barRods: [BarChartRodData(toY: value, color: barColor, width: 8, borderRadius: BorderRadius.circular(2))]);
+          }),
+        )),
       ),
     );
   }
@@ -304,19 +267,16 @@ Future<void> fetchIncomeSummary() async {
   FlTitlesData _titlesData() => FlTitlesData(
     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) => Padding(
-      padding: const EdgeInsets.only(top: 10.0),
-      child: Text(monthsShort[v.toInt() % 13], style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-    ))),
-    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (v, m) => Text(_compact(v), style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)))),
+    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) => Padding(padding: const EdgeInsets.only(top: 4), child: Text(monthsShort[v.toInt() % 13], style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold))))),
+    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) => Text(_compact(v), style: const TextStyle(fontSize: 9, color: Colors.grey)))),
   );
 
   Widget _buildYearMonthRow(int m) {
     final val = yearMetric == YearMetric.income ? _yearTotal(m) : (yearMetric == YearMetric.water ? _yearWater(m) : _yearElectric(m));
     final hasData = val > 0;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)]),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
           Text(monthsText[m - 1], style: TextStyle(fontSize: fBody, color: hasData ? cTextMain : Colors.grey.shade400, fontWeight: FontWeight.w700)),
@@ -331,13 +291,10 @@ Future<void> fetchIncomeSummary() async {
   Widget _buildBreakdownCard() {
     double total = (breakdown["rent"] ?? 0) + (breakdown["water"] ?? 0) + (breakdown["electric"] ?? 0);
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12)]),
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(height: 14, width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: Column(children: [
+          ClipRRect(borderRadius: BorderRadius.circular(6), child: SizedBox(height: 10, width: double.infinity,
               child: Row(children: [
                 if (total > 0 && (breakdown["rent"] ?? 0) > 0) Expanded(flex: ((breakdown["rent"]! / total) * 100).toInt(), child: Container(color: const Color(0xFF1565C0))),
                 if (total > 0 && (breakdown["water"] ?? 0) > 0) Expanded(flex: ((breakdown["water"]! / total) * 100).toInt(), child: Container(color: const Color(0xFF0288D1))),
@@ -345,11 +302,11 @@ Future<void> fetchIncomeSummary() async {
               ]),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           _legendRow("ค่าเช่าห้อง", breakdown["rent"] ?? 0, const Color(0xFF1565C0)),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1, thickness: 0.5)),
+          const Divider(height: 12, thickness: 0.5),
           _legendRow("ค่าน้ำ", breakdown["water"] ?? 0, const Color(0xFF0288D1)),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1, thickness: 0.5)),
+          const Divider(height: 12, thickness: 0.5),
           _legendRow("ค่าไฟ", breakdown["electric"] ?? 0, const Color(0xFFEF6C00)),
         ],
       ),
@@ -359,17 +316,16 @@ Future<void> fetchIncomeSummary() async {
   Widget _legendRow(String label, double val, Color color) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Row(children: [ Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 12), Text(label, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.w600, color: Colors.black87))]),
+      Row(children: [ Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 8), Text(label, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.w600, color: Colors.black87))]),
       Text("${money.format(val)} ฿", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: fBody, color: cTextMain)),
     ],
   );
 
   Widget _buildErrorState() => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-    const Icon(Icons.error_outline, size: 54, color: Color(0xFFD32F2F)),
-    const SizedBox(height: 16),
-    Text(loadError ?? "เกิดข้อผิดพลาดในการโหลดข้อมูล", style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.w700, color: cTextMain)),
+    const Icon(Icons.error_outline, size: 40, color: Color(0xFFD32F2F)),
     const SizedBox(height: 12),
-    TextButton(onPressed: fetchIncomeSummary, child: const Text("ลองใหม่อีกครั้ง", style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1565C0)))),
+    Text(loadError ?? "เกิดข้อผิดพลาด", style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.w700, color: cTextMain)),
+    TextButton(onPressed: fetchIncomeSummary, child: const Text("ลองใหม่", style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1565C0)))),
   ]));
 
   double _maxSingleYearY(double Function(int month) getter) {

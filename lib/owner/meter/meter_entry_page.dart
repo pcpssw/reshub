@@ -25,8 +25,8 @@ class _MeterEntryPageState extends State<MeterEntryPage>
   static const Color cIcon = Color(0xFF523D2D);
   static const Color cAccent = Color(0xFFDCD2C1);
 
+  static const double fTitle = 16.0;
   static const double fHeader = 15.0;
-  static const double fTitle = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
   static const double fCaption = 11.0;
@@ -246,6 +246,7 @@ class _MeterEntryPageState extends State<MeterEntryPage>
     }
   }
 
+  // ✅ แก้ไข: ฟังก์ชันบันทึกข้อมูลแบบไม่ให้ค่าหาย
   Future<void> _saveAllData() async {
     final items = <Map<String, dynamic>>[];
 
@@ -255,48 +256,31 @@ class _MeterEntryPageState extends State<MeterEntryPage>
       final wVal = r.waterCtrl.text.trim();
       final eVal = r.elecCtrl.text.trim();
 
-      if (wVal == r.initWater && eVal == r.initElec) continue;
+      // เช็คว่ามีการเปลี่ยนแปลงค่าใดค่าหนึ่งหรือไม่
+      bool waterChanged = wVal != r.initWater;
+      bool elecChanged = eVal != r.initElec;
 
-      final Map<String, dynamic> row = {"room_id": r.roomId};
-      bool hasChange = false;
+      if (waterChanged || elecChanged) {
+        final Map<String, dynamic> row = {"room_id": r.roomId};
 
-      if (wVal != r.initWater) {
-        if (wVal.isNotEmpty) {
-          final val = int.tryParse(wVal);
-          if (val == null) {
-            _snack("เลขน้ำห้อง ${r.label} ไม่ถูกต้อง");
-            return;
-          }
-          if (val < r.prevWater) {
-            _snack("เลขน้ำห้อง ${r.label} ต่ำกว่าเดือนก่อน");
-            return;
-          }
-          row["water_meter"] = val;
-        } else {
-          row["water_meter"] = 0;
+        // ตรวจสอบและใส่เลขนน้ำ
+        final intW = int.tryParse(wVal) ?? 0;
+        if (wVal.isNotEmpty && intW < r.prevWater) {
+          _snack("เลขน้ำห้อง ${r.label} ต่ำกว่าเดือนก่อน");
+          return;
         }
-        hasChange = true;
-      }
+        row["water_meter"] = wVal.isEmpty ? 0 : intW;
 
-      if (eVal != r.initElec) {
-        if (eVal.isNotEmpty) {
-          final val = int.tryParse(eVal);
-          if (val == null) {
-            _snack("เลขไฟห้อง ${r.label} ไม่ถูกต้อง");
-            return;
-          }
-          if (val < r.prevElec) {
-            _snack("เลขไฟห้อง ${r.label} ต่ำกว่าเดือนก่อน");
-            return;
-          }
-          row["electric_meter"] = val;
-        } else {
-          row["electric_meter"] = 0;
+        // ตรวจสอบและใส่เลขไฟ
+        final intE = int.tryParse(eVal) ?? 0;
+        if (eVal.isNotEmpty && intE < r.prevElec) {
+          _snack("เลขไฟห้อง ${r.label} ต่ำกว่าเดือนก่อน");
+          return;
         }
-        hasChange = true;
-      }
+        row["electric_meter"] = eVal.isEmpty ? 0 : intE;
 
-      if (hasChange) items.add(row);
+        items.add(row);
+      }
     }
 
     if (items.isEmpty) {
@@ -324,7 +308,7 @@ class _MeterEntryPageState extends State<MeterEntryPage>
       final resp = jsonDecode(res.body);
       if (resp["ok"] == true) {
         _snack("บันทึกเรียบร้อย ✅");
-        await _loadData();
+        await _loadData(); // โหลดข้อมูลใหม่เพื่อรีเซ็ตค่า initWater/initElec
       } else {
         _snack("บันทึกไม่สำเร็จ: ${resp["message"] ?? "ลองใหม่อีกครั้ง"}");
       }
@@ -530,25 +514,25 @@ class _MeterEntryPageState extends State<MeterEntryPage>
           ),
           actions: [
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-              child: ElevatedButton(
+              padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
+              child: OutlinedButton(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const DormRatesPage(),
+                  MaterialPageRoute(builder: (_) => const DormRatesPage()),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: cAccent, width: 1.2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: cBg,
-                  foregroundColor: cTextMain,
-                  elevation: 0,
-                  shape: const StadiumBorder(),
-                ),
-                child: Text(
+                child: const Text(
                   "เรทราคา",
-                  style: GoogleFonts.kanit(
-                    fontSize: fDetail,
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    color: cTextMain,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
