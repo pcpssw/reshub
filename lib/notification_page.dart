@@ -22,7 +22,6 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
-  // 🎨 Palette สี
   static const Color cVanilla  = Color(0xFFF4EFE6); 
   static const Color cTeddy    = Color(0xFF523D2D); 
   static const Color cBrown    = Color(0xFF8D7456); 
@@ -56,7 +55,7 @@ class _NotificationPageState extends State<NotificationPage> {
     _init();
   }
 
-  // --- 🎨 Improved Custom Dialogs (ตามขนาดที่คุณต้องการ) ---
+  // --- 🎨 Improved Custom Dialogs (w900 & line-height 1.5) ---
 
   void _showNotFoundDialog(String message) {
     showDialog(
@@ -71,19 +70,16 @@ class _NotificationPageState extends State<NotificationPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFF3E0), 
-                  shape: BoxShape.circle
-                ),
+                decoration: const BoxDecoration(color: Color(0xFFFFF3E0), shape: BoxShape.circle),
                 child: const Icon(Icons.search_off_rounded, color: Colors.orange, size: 40),
               ),
               const SizedBox(height: 20),
               const Text("ไม่พบข้อมูล", 
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: cTeddy)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: cTeddy)),
               const SizedBox(height: 12),
               Text(message, 
                 textAlign: TextAlign.center, 
-                style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.4)),
+                style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.5)),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -93,9 +89,10 @@ class _NotificationPageState extends State<NotificationPage> {
                     backgroundColor: cTeddy,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 0,
                   ),
                   child: const Text("เข้าใจแล้ว", 
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
                 ),
               ),
             ],
@@ -119,19 +116,16 @@ class _NotificationPageState extends State<NotificationPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFEBEE), 
-                  shape: BoxShape.circle
-                ),
+                decoration: const BoxDecoration(color: Color(0xFFFFEBEE), shape: BoxShape.circle),
                 child: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 40),
               ),
               const SizedBox(height: 20),
               const Text("ยืนยันการลบ", 
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: cTeddy)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: cTeddy)),
               const SizedBox(height: 12),
               const Text("ต้องการลบการแจ้งเตือนทั้งหมดใช่หรือไม่?\nข้อมูลจะหายไปถาวร", 
                 textAlign: TextAlign.center, 
-                style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4)),
+                style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.5)),
               const SizedBox(height: 24),
               Row(
                 children: [
@@ -142,9 +136,10 @@ class _NotificationPageState extends State<NotificationPage> {
                         backgroundColor: Colors.redAccent,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
                       ),
                       child: const Text("ยืนยันลบ", 
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -157,7 +152,7 @@ class _NotificationPageState extends State<NotificationPage> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: const Text("ยกเลิก", 
-                        style: TextStyle(color: cTeddy, fontWeight: FontWeight.bold)),
+                        style: TextStyle(color: cTeddy, fontWeight: FontWeight.w900)),
                     ),
                   ),
                 ],
@@ -176,25 +171,6 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   // --- Logic & API Methods ---
-
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(fontSize: fBody, color: cVanilla)), 
-        backgroundColor: cTeddy,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
-  Map<String, dynamic>? _tryJson(String body) {
-    try {
-      final d = jsonDecode(body);
-      return d is Map<String, dynamic> ? d : Map<String, dynamic>.from(d);
-    } catch (_) { return null; }
-  }
 
   Future<void> _init() async {
     setState(() => loading = true);
@@ -262,15 +238,18 @@ class _NotificationPageState extends State<NotificationPage> {
     } catch (_) {}
   }
 
+  // ✅ แก้ไข: คำขออนุมัติ (new_registration) จะไม่มี Navigator.push ทำให้ไม่มีหน้าจอเด้ง
   Future<void> _openByNotification(Map<String, dynamic> it) async {
     final String type = (it["type"] ?? "").toString().toLowerCase();
     final int refId = int.tryParse("${it["ref_id"]}") ?? 0;
-    if (mounted) setState(() => loading = true);
+    
+    // ไม่ต้องแสดง loading ถ้าเป็นประเภทที่ไม่เด้งหน้า
+    if (type != "new_registration") {
+      if (mounted) setState(() => loading = true);
+    }
+    
     try {
-      if (type == "new_registration") {
-        await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPendingPage()));
-      } 
-      else if (type.contains("repair")) {
+      if (type.contains("repair")) {
         if (refId > 0) {
           final m = await _fetchRepairById(refId);
           if (m != null && mounted) {
@@ -294,6 +273,8 @@ class _NotificationPageState extends State<NotificationPage> {
           }
         }
       }
+      
+      // ทุกประเภทเมื่อกดแล้วจะ Mark Read และโหลดข้อมูลใหม่เสมอ
       await _loadAll();
     } catch (e) {
       _snack("ไม่สามารถเข้าถึงข้อมูลได้");
@@ -304,32 +285,18 @@ class _NotificationPageState extends State<NotificationPage> {
 
   Future<Map<String, dynamic>?> _fetchRepairById(int repairId) async {
     try {
-      final res = await http.post(_repairApi, body: {
-        "action": "getRepairById", 
-        "repair_id": repairId.toString(), 
-        "dorm_id": dormId.toString()
-      });
+      final res = await http.post(_repairApi, body: {"action": "getRepairById", "repair_id": repairId.toString(), "dorm_id": dormId.toString()});
       final data = _tryJson(res.body);
-      if (data != null && (data["success"] == true || data["ok"] == true)) {
-        return Map<String, dynamic>.from(data["data"]);
-      }
+      if (data != null && (data["success"] == true || data["ok"] == true)) return Map<String, dynamic>.from(data["data"]);
       return null;
     } catch (_) { return null; }
   }
 
   Future<BillItem?> _fetchBillByPaymentId(int paymentId) async {
     try {
-      final res = await http.post(_billApi, body: {
-        "action": "getPaymentById", 
-        "payment_id": paymentId.toString(), 
-        "user_id": userId.toString(), 
-        "role": roleForApi, 
-        "dorm_id": dormId.toString()
-      });
+      final res = await http.post(_billApi, body: {"action": "getPaymentById", "payment_id": paymentId.toString(), "user_id": userId.toString(), "role": roleForApi, "dorm_id": dormId.toString()});
       final data = _tryJson(res.body);
-      if (data != null && (data["success"] == true || data["ok"] == true)) {
-        return BillItem.fromJson(Map<String, dynamic>.from(data["data"]));
-      }
+      if (data != null && (data["success"] == true || data["ok"] == true)) return BillItem.fromJson(Map<String, dynamic>.from(data["data"]));
       return null;
     } catch (_) { return null; }
   }
@@ -364,12 +331,16 @@ class _NotificationPageState extends State<NotificationPage> {
     else if (type.contains("bill")) { icon = Icons.receipt_long_rounded; color = isRead ? Colors.grey : const Color(0xFF6B8E4E); } 
     else if (type == "new_registration") { icon = Icons.person_add_alt_1_rounded; color = isRead ? Colors.grey : const Color(0xFF548CA8); } 
     else { icon = Icons.notifications_none_rounded; color = isRead ? Colors.grey : cTeddy; }
-    
-    return Container(
-      padding: const EdgeInsets.all(8), 
-      decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), 
-      child: Icon(icon, color: color, size: 18)
-    );
+    return Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 18));
+  }
+
+  Map<String, dynamic>? _tryJson(String body) {
+    try { final d = jsonDecode(body); return d is Map<String, dynamic> ? d : Map<String, dynamic>.from(d); } catch (_) { return null; }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: cTeddy, behavior: SnackBarBehavior.floating));
   }
 
   @override
@@ -392,34 +363,19 @@ class _NotificationPageState extends State<NotificationPage> {
             : items.isEmpty
                 ? const Center(child: Text("ยังไม่มีแจ้งเตือน", style: TextStyle(color: cBrown, fontSize: fBody)))
                 : ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: items.length,
+                    padding: const EdgeInsets.all(12), itemCount: items.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, i) {
                       final it = items[i];
                       final isRead = (int.tryParse("${it["is_read"]}") ?? 0) == 1;
                       final nid = int.tryParse("${it["notification_id"]}") ?? 0;
                       return Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(15), color: cWhite,
-                          border: isRead ? Border.all(color: cTeddy.withOpacity(0.05)) : Border.all(color: cAccent, width: 1.2),
-                          boxShadow: [BoxShadow(color: cTeddy.withOpacity(0.02), blurRadius: 5, offset: const Offset(0, 2))]
-                        ),
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), color: cWhite, border: isRead ? Border.all(color: cTeddy.withOpacity(0.05)) : Border.all(color: cAccent, width: 1.2)),
                         child: ListTile(
-                          onTap: () async {
-                            if (!isRead && nid > 0) await _markRead(nid);
-                            await _openByNotification(it);
-                          },
+                          onTap: () async { if (!isRead && nid > 0) await _markRead(nid); await _openByNotification(it); },
                           leading: _getIconByType(it["type"]?.toString().toLowerCase() ?? "", isRead),
                           title: Text(it["title"] ?? "", style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold, fontSize: fHeader, color: isRead ? cTeddy.withOpacity(0.7) : cTeddy)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(it["message"] ?? "", maxLines: 2, style: TextStyle(fontSize: fBody, color: cTeddy.withOpacity(0.8))),
-                              const SizedBox(height: 4),
-                              Text(_prettyThaiDate(it["created_at"] ?? ""), style: TextStyle(fontSize: fCaption, color: cBrown.withOpacity(0.6))),
-                            ],
-                          ),
+                          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(it["message"] ?? "", maxLines: 2, style: TextStyle(fontSize: fBody, color: cTeddy.withOpacity(0.8))), const SizedBox(height: 4), Text(_prettyThaiDate(it["created_at"] ?? ""), style: TextStyle(fontSize: fCaption, color: cBrown.withOpacity(0.6)))]),
                           trailing: isRead ? null : const Icon(Icons.circle, size: 8, color: Colors.redAccent),
                         ),
                       );

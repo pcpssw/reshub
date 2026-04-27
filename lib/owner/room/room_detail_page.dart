@@ -57,19 +57,105 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
   Future<void> _deleteRoom() async {
     final bool? confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("ยืนยันการลบ", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text("คุณแน่ใจใช่ไหมที่จะลบห้อง ${_room.roomNo}?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("ยกเลิก")),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("ลบ", style: TextStyle(color: Colors.red)),
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon ส่วนหัว วงกลมสีแดง
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: Colors.redAccent,
+                  size: 45,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // หัวข้อ สีน้ำตาลเข้ม
+              const Text(
+                "ยืนยันการลบห้อง",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF523D2D), // cTeddy
+                ),
+              ),
+              const SizedBox(height: 10),
+              // เนื้อหาคำถาม พร้อมเว้นระยะบรรทัด (height: 1.5)
+              Text(
+                "คุณแน่ใจใช่ไหมที่จะลบห้อง\n${_room.roomNo} ใช่หรือไม่?",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 30),
+              // แถวปุ่มกด
+              Row(
+                children: [
+                  // ปุ่มยืนยัน (ElevatedButton สีน้ำตาลเข้ม)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF523D2D), // cTeddy
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        "ยืนยัน",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // ปุ่มกลับ (OutlinedButton ขอบสีครีมทอง)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFDCD2C1)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text(
+                        "ยกเลิก",
+                        style: TextStyle(
+                          color: Color(0xFF523D2D), // cTeddy
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
 
+    // เช็คค่าที่ส่งกลับมา ถ้าไม่ใช่ true ให้จบทันที
     if (confirm != true) return;
 
     setState(() => saving = true);
@@ -84,7 +170,8 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
       );
       final data = jsonDecode(res.body);
       if (data["ok"] == true && mounted) Navigator.pop(context, true);
-    } catch (_) {
+    } catch (e) {
+      debugPrint("Error: $e");
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -206,7 +293,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : const Text(
-                        "บันทึกข้อมูล",
+                        "บันทึก",
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: fBody),
                       ),
               ),

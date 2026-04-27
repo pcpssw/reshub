@@ -27,7 +27,6 @@ class _BillPageState extends State<BillPage> {
   static const double fCaption = 11.0;
 
   static const Color _bgColor = Color(0xFFF4EFE6);
-  static const Color _cardColor = Colors.white;
   static const Color _textColor = Color(0xFF523D2D);
   static const Color _mutedColor = Color(0xFF7D6552);
   static const Color _lineColor = Color(0xFFD7CCC8);
@@ -151,8 +150,6 @@ class _BillPageState extends State<BillPage> {
   double _toDouble(dynamic v) =>
       double.tryParse(v.toString().replaceAll(",", "")) ?? 0;
 
-  void _toast(String msg) {}
-
   String _statusText(String s) {
     final v = s.toLowerCase().trim();
     if (v == "verified" || v == "paid" || v == "done") return "ชำระแล้ว";
@@ -188,16 +185,15 @@ class _BillPageState extends State<BillPage> {
           ),
         ),
         actions: [
-          // ✅ ปุ่มสรุปรายปี สไตล์ OutlinedButton
           Padding(
             padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
             child: OutlinedButton(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const ExpensePage()), // เชื่อมไปยัง ExpensePage (หน้าสรุปรายปี)
+                MaterialPageRoute(builder: (_) => const ExpensePage()),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color.fromARGB(255, 172, 170, 170), width: 1.2), // เปลี่ยนสีที่นี่
+                side: const BorderSide(color: Color.fromARGB(255, 172, 170, 170), width: 1.2),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -465,7 +461,7 @@ class _BillPageState extends State<BillPage> {
                         children: const [
                           Icon(
                             Icons.add_a_photo_rounded,
-                            color: Color.fromARGB(255, 114, 84, 59),
+                            color: Color(0xFF72543B),
                             size: 42,
                           ),
                           SizedBox(height: 8),
@@ -473,7 +469,7 @@ class _BillPageState extends State<BillPage> {
                             "แตะเพื่อเลือกรูปสลิป",
                             style: TextStyle(
                               fontSize: 13,
-                               color: Color.fromARGB(255, 114, 84, 59),
+                               color: Color(0xFF72543B),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -500,7 +496,7 @@ class _BillPageState extends State<BillPage> {
                         _submitting ? "กำลังส่งข้อมูล..." : "ยืนยันการชำระเงิน",
                         style: const TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w900,
                           fontSize: 16,
                         ),
                       ),
@@ -518,7 +514,6 @@ class _BillPageState extends State<BillPage> {
   Widget _buildPaymentChannelButton() {
     return InkWell(
       onTap: () {
-        if (bankAccounts.isEmpty) return;
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -621,7 +616,7 @@ class _BillPageState extends State<BillPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.add_a_photo_rounded,
+            Icons.receipt_long_rounded,
             size: 80,
             color: _mutedColor.withOpacity(0.1),
           ),
@@ -761,6 +756,7 @@ class _BillPageState extends State<BillPage> {
   Future<bool> _showConfirmDeleteDialog() async {
     return await showDialog<bool>(
           context: context,
+          barrierDismissible: false,
           builder: (ctx) => Dialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
@@ -789,7 +785,7 @@ class _BillPageState extends State<BillPage> {
                     "ยืนยันการลบ",
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
                       color: _textColor,
                     ),
                   ),
@@ -797,7 +793,11 @@ class _BillPageState extends State<BillPage> {
                   const Text(
                     "คุณต้องการลบหลักฐานการโอน\nใช่หรือไม่?",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: fDetail, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: fDetail,
+                      color: Colors.grey,
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 30),
                   Row(
@@ -808,14 +808,16 @@ class _BillPageState extends State<BillPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _textColor,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 0,
                           ),
                           child: const Text(
                             "ยืนยันลบ",
                             style: TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
@@ -827,20 +829,21 @@ class _BillPageState extends State<BillPage> {
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: _lineColor),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           child: const Text(
                             "ยกเลิก",
                             style: TextStyle(
                               color: _textColor,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
@@ -852,6 +855,7 @@ class _BillPageState extends State<BillPage> {
   Future<bool> _showConfirmSendDialog() async {
     return await showDialog<bool>(
           context: context,
+          barrierDismissible: false,
           builder: (ctx) => Dialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
@@ -880,7 +884,7 @@ class _BillPageState extends State<BillPage> {
                     "ยืนยันการส่งสลิป",
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
                       color: _textColor,
                     ),
                   ),
@@ -888,7 +892,12 @@ class _BillPageState extends State<BillPage> {
                   const Text(
                     "คุณตรวจสอบความถูกต้อง\nของรูปภาพสลิปเรียบร้อยแล้วใช่หรือไม่?",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: fDetail, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: fDetail,
+                      color: Colors.grey,
+                      height: 1.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 30),
                   Row(
@@ -899,14 +908,16 @@ class _BillPageState extends State<BillPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _textColor,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 0,
                           ),
                           child: const Text(
                             "ยืนยัน",
                             style: TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
@@ -918,20 +929,21 @@ class _BillPageState extends State<BillPage> {
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: _lineColor),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           child: const Text(
                             "ยกเลิก",
                             style: TextStyle(
                               color: _textColor,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
@@ -948,15 +960,11 @@ class BankDetailPage extends StatelessWidget {
   Color _getBankColor(String? bankName) {
     final name = bankName?.toLowerCase() ?? "";
     if (name.contains("กสิกร")) return const Color(0xFF13804E);
-    if (name.contains("ไทยพาณิชย์") || name.contains("scb")) {
-      return const Color(0xFF4E2E7F);
-    }
+    if (name.contains("ไทยพาณิชย์") || name.contains("scb")) return const Color(0xFF4E2E7F);
     if (name.contains("กรุงเทพ")) return const Color(0xFF1E4598);
     if (name.contains("กรุงไทย")) return const Color(0xFF00A1E0);
     if (name.contains("กรุงศรี")) return const Color(0xFFB59300);
-    if (name.contains("ttb") || name.contains("ทหารไทย")) {
-      return const Color(0xFFE65A28);
-    }
+    if (name.contains("ttb") || name.contains("ทหารไทย")) return const Color(0xFFE65A28);
     if (name.contains("ออมสิน")) return const Color(0xFFD81B60);
     return const Color(0xFF523D2D);
   }
@@ -990,15 +998,34 @@ class BankDetailPage extends StatelessWidget {
         top: false,
         bottom: true,
         child: bankAccounts.isEmpty
-            ? const Center(
-                child: Text(
-                  "ยังไม่มีข้อมูลบัญชี",
-                  style: TextStyle(color: textColor),
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.account_balance_wallet_outlined,
+                      size: 80,
+                      color: textColor.withOpacity(0.1),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      "ยังไม่มีข้อมูลบัญชีธนาคาร",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "กรุณาติดต่อเจ้าของหอพักเพื่อสอบถามข้อมูล",
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                  ],
                 ),
               )
             : ListView.builder(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 itemCount: bankAccounts.length,
                 itemBuilder: (ctx, i) {
                   final a = bankAccounts[i];

@@ -468,7 +468,7 @@ class _ProfilePageState extends State<ProfilePage> {
             Row(children: [
               Expanded(child: ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: cTeddy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), child: const Text("ยืนยัน", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
               const SizedBox(width: 12),
-              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFFDCD2C1)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), child: const Text("กลับ", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold)))),
+              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFFDCD2C1)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)), child: const Text("ยกเลิก", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold)))),
             ]),
           ]),
         ),

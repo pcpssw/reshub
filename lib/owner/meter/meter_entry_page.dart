@@ -409,7 +409,7 @@ class _MeterEntryPageState extends State<MeterEntryPage>
               Text(
                 r.hasTenant ? "$used" : "-",
                 style: GoogleFonts.kanit(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                   color: r.hasTenant ? themeColor : Colors.grey,
                   fontSize: 16,
                 ),
@@ -506,9 +506,9 @@ class _MeterEntryPageState extends State<MeterEntryPage>
           ),
           title: Text(
             "กรอกมิเตอร์",
-            style: GoogleFonts.kanit(
+            style: TextStyle(
               color: cTextMain,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
               fontSize: fHeader,
             ),
           ),

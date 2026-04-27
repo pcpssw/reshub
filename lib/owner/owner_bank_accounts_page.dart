@@ -202,53 +202,96 @@ class _BankAccountsAdminPageState extends State<BankAccountsAdminPage> {
     );
   }
 
-  void _confirmDelete(Map<String, dynamic> a) async {
-    final ok = await showDialog<bool>(
+Future<void> _confirmDelete(Map<String, dynamic> a) async {
+    final bool? ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ไอคอนวงกลม
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.red[50], shape: BoxShape.circle),
-                child: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent, size: 40),
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: Colors.redAccent,
+                  size: 45,
+                ),
               ),
               const SizedBox(height: 20),
-              const Text("ลบบัญชีธนาคาร", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cTextMain)),
-              const SizedBox(height: 12),
-              Text(
-                "คุณต้องการลบบัญชี ${a["bank_name"]} ใช่หรือไม่?",
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              // หัวข้อ
+              const Text(
+                "ลบบัญชีธนาคาร",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF523D2D), // cTeddy
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 10), // ช่องว่างระหว่างหัวข้อกับเนื้อหา
+              // เนื้อหา (เน้นช่องว่างระหว่างบรรทัดด้วย height)
+              Text(
+                "คุณต้องการลบบัญชี\n${a["bank_name"]} ใช่หรือไม่?",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey,
+                  height: 1.5, // เพิ่มระยะห่างระหว่างบรรทัดให้โปร่งเหมือนในรูป
+                ),
+              ),
+              const SizedBox(height: 30), // ช่องว่างก่อนถึงปุ่ม
               Row(
                 children: [
+                  // ปุ่มยืนยัน (ElevatedButton)
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        elevation: 0, backgroundColor: Colors.redAccent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        backgroundColor: const Color(0xFF523D2D), // cTeddy
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
                       ),
-                      child: const Text("ลบ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        "ยืนยัน",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
+                  // ปุ่มกลับ (OutlinedButton)
                   Expanded(
-                    child: ElevatedButton(
+                    child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0, backgroundColor: cTextMain,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFDCD2C1)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text("ยกเลิก", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        "ยกเลิก",
+                        style: TextStyle(
+                          color: Color(0xFF523D2D), // cTeddy
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ],

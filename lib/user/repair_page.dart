@@ -681,7 +681,7 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
         title: const Text(
           "ประวัติการแจ้งซ่อม",
           style: TextStyle(
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w900, // หัวข้อใหญ่ยังคงความหนาตามต้นฉบับ
             color: cTextMain,
             fontSize: fHeader,
           ),
@@ -689,50 +689,92 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator(color: cDark))
-          : ListView.separated(
-              // ✅ แก้ไข: เพิ่ม Padding ด้านล่างให้ ListView พ้นเมนูหลัก
-              padding: const EdgeInsets.fromLTRB(14, 15, 14, 120),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) {
-                final it = items[i];
+          : items.isEmpty
+              ? _buildEmptyState() // ✅ แสดงหน้าว่างถ้าไม่มีข้อมูล
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(14, 15, 14, 120),
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) {
+                    final it = items[i];
+                    final String? firstImg = _extractImageUrl(it["image_path"]);
+                    final repairType = (it["repair_type"] ?? "").toString();
 
-                final String? firstImg = _extractImageUrl(it["image_path"]);
-                final repairType = (it["repair_type"] ?? "").toString();
+                    final Color sColor = it["status"].toString().contains("pending")
+                        ? const Color(0xFFD32F2F)
+                        : (it["status"].toString().contains("working"))
+                            ? const Color(0xFFEF6C00)
+                            : const Color(0xFF2E7D32);
 
-                final Color sColor = it["status"].toString().contains("pending")
-                    ? const Color(0xFFD32F2F)
-                    : (it["status"].toString().contains("working"))
-                        ? const Color(0xFFEF6C00)
-                        : const Color(0xFF2E7D32);
+                    String rawDetail = (it["detail"] ?? "").toString();
+                    String titleDisplay = (rawDetail.length > 20) 
+                        ? "${rawDetail.substring(0, 20)}..." 
+                        : rawDetail;
 
-                String rawDetail = (it["detail"] ?? "").toString();
-                String titleDisplay = (rawDetail.length > 20) 
-                    ? "${rawDetail.substring(0, 20)}..." 
-                    : rawDetail;
-
-                return _RepairCardNoStatus(
-                  statusColor: sColor,
-                  title: titleDisplay, 
-                  typeText: repairType,
-                  createdText: _prettyThaiDate(it["created_at"] ?? "-"),
-                  imageUrl: firstImg,
-                  onTap: () async {
-                    final res = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => EditRepairPage(item: it),
-                      ),
+                    return _RepairCardNoStatus(
+                      statusColor: sColor,
+                      title: titleDisplay, 
+                      typeText: repairType,
+                      createdText: _prettyThaiDate(it["created_at"] ?? "-"),
+                      imageUrl: firstImg,
+                      onTap: () async {
+                        final res = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EditRepairPage(item: it),
+                          ),
+                        );
+                        if (res == true) _load();
+                      },
                     );
-                    if (res == true) _load();
                   },
-                );
-              },
+                ),
+    );
+  }
+
+  // ✅ หน้าตาตอนไม่มีข้อมูลแจ้งซ่อม
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF523D2D).withOpacity(0.05), // cTeddy/cDark
+              shape: BoxShape.circle,
             ),
+            child: Icon(
+              Icons.assignment_late_outlined,
+              size: 65,
+              color: const Color(0xFF523D2D).withOpacity(0.3),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "ไม่มีประวัติการแจ้งซ่อม",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.normal, // ปรับให้ไม่หนาตามสไตล์ที่คุณชอบ
+              color: Color(0xFF523D2D),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            "คุณยังไม่เคยส่งรายการแจ้งซ่อมใดๆ",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 100), // ดันขึ้นจากขอบล่างนิดหน่อยให้ดูสมดุล
+        ],
+      ),
     );
   }
 }
-
 class EditRepairPage extends StatefulWidget {
   final Map<String, dynamic> item;
   const EditRepairPage({super.key, required this.item});
@@ -768,19 +810,21 @@ class _EditRepairPageState extends State<EditRepairPage> {
     });
   }
 
-  Future<bool> _showConfirmDeleteDialog() async {
+Future<bool> _showConfirmDeleteDialog() async {
     return await showDialog<bool>(
           context: context,
+          barrierDismissible: false,
           builder: (ctx) => Dialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
+              borderRadius: BorderRadius.circular(25), // ความโค้งมน 25
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // ไอคอนถังขยะในวงกลมสีแดง
                   Container(
                     width: 80,
                     height: 80,
@@ -795,60 +839,69 @@ class _EditRepairPageState extends State<EditRepairPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // หัวข้อ: ตัวหนาแบบเขาสุดๆ (w900)
                   const Text(
                     "ยืนยันการลบ",
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: cTextMain,
+                      fontWeight: FontWeight.w900, // หนาพิเศษ
+                      color: cTextMain, // สีน้ำตาลเข้ม 0xFF523D2D
                     ),
                   ),
                   const SizedBox(height: 10),
+                  // เนื้อหา: ระยะบรรทัด 1.5 ให้ดูโปร่ง
                   const Text(
                     "คุณต้องการลบรายการแจ้งซ่อมนี้\nใช่หรือไม่?",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: fDetail,
+                      fontSize: fDetail, // 13.0
                       color: Colors.grey,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w600, // หนาปานกลาง
+                      height: 1.5,
                     ),
                   ),
                   const SizedBox(height: 30),
+                  // แถวปุ่มกด
                   Row(
                     children: [
+                      // ปุ่มยืนยันลบ สีน้ำตาลเข้ม
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => Navigator.pop(ctx, true),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: cDark,
+                            backgroundColor: cDark, // 0xFF523D2D
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 0,
                           ),
                           child: const Text(
-                            "ยืนยันลบ",
+                            "ยืนยัน",
                             style: TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w900, // ตัวหนาที่ปุ่ม
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
+                      // ปุ่มยกเลิก แบบมีเส้นขอบ
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(ctx, false),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: cAccent),
+                            side: const BorderSide(color: cAccent), // สีครีมทอง 0xFFD7CCC8
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           child: const Text(
                             "ยกเลิก",
                             style: TextStyle(
                               color: cTextMain,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w900, // ตัวหนาที่ปุ่ม
                             ),
                           ),
                         ),
@@ -1420,8 +1473,8 @@ class _EditRepairPageState extends State<EditRepairPage> {
                           ),
                         )
                       : const Icon(
-                          Icons.add_photo_alternate_rounded,
-                          color: cDark,
+                          Icons.add_a_photo_rounded,
+                          color:  Color.fromARGB(255, 114, 84, 59),
                           size: 50,
                         ),
             ),
