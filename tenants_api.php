@@ -123,7 +123,9 @@ function fetch_pending_rooms_bundle($conn, $T_MEM, $T_USERS, $T_ROOMS, $T_BLD, $
             r.room_id,
             r.room_number,
             COALESCE(b.building_name, '') AS building,
-            r.floor
+            r.floor,
+            r.tenant_id,  -- แก้ไขจุดที่ 1: เพิ่ม tenant_id
+            r.status      -- แก้ไขจุดที่ 1: เพิ่ม status
         FROM {$T_ROOMS} r
         LEFT JOIN {$T_BLD} b ON b.building_id = r.building_id
         WHERE r.dorm_id = ?
@@ -137,6 +139,7 @@ function fetch_pending_rooms_bundle($conn, $T_MEM, $T_USERS, $T_ROOMS, $T_BLD, $
     while ($row = $rs2->fetch_assoc()) {
         $row["room_id"] = (int)$row["room_id"];
         $row["floor"] = isset($row["floor"]) && $row["floor"] !== null ? (int)$row["floor"] : 0;
+        $row["tenant_id"] = isset($row["tenant_id"]) ? (int)$row["tenant_id"] : null; // แก้ไขจุดที่ 1: แปลงค่า tenant_id
         $rooms[] = $row;
     }
     $stmt2->close();
@@ -180,7 +183,7 @@ if ($action === "list") {
     $sql = "
         SELECT
             m.membership_id,
-            m.membership_id AS tenant_id,
+            m.user_id AS tenant_id,  -- แก้ไขจุดที่ 2: ดึงค่า tenant_id จาก user_id
             m.user_id,
             m.dorm_id,
             COALESCE(m.room_id, r2.room_id, 0) AS room_id,

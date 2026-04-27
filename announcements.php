@@ -204,9 +204,12 @@ if ($action === 'add' || $action === 'update') {
         jexit(["ok" => false, "message" => "กรุณากรอกหัวข้อประกาศ"], 400);
     }
 
-    $imagePath = null;
+    // ตัวแปรเช็คสถานะการอัปโหลดรูป
+    $hasNewImage = false;
+    $imagePath = ''; // เปลี่ยนจาก null เป็นสตริงว่าง
 
-    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+    // ตรวจสอบว่ามีการแนบไฟล์มาจริงๆ และขนาดมากกว่า 0
+    if (isset($_FILES['image']) && $_FILES['image']['size'] > 0 && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         [$uploadOk, $uploadedPath, $uploadError] = saveUploadedImage('image');
 
         if (!$uploadOk) {
@@ -214,7 +217,9 @@ if ($action === 'add' || $action === 'update') {
         }
 
         $imagePath = $uploadedPath;
+        $hasNewImage = true; // ยืนยันว่ามีรูปใหม่เข้ามา
 
+        // ถ้าเป็นการอัปเดต ให้ลบรูปเก่าทิ้ง
         if ($action === 'update' && $id > 0) {
             $oldImage = getOldImagePath($conn, $id);
             if ($oldImage !== '') {
@@ -234,24 +239,30 @@ if ($action === 'add' || $action === 'update') {
             jexit(["ok" => false, "message" => "announce_id ไม่ถูกต้อง"], 400);
         }
 
-        if ($imagePath !== null) {
+        if ($hasNewImage) {
+            // กรณีที่ 1: มีการอัปโหลดรูปใหม่เข้ามา (อัปเดตข้อมูล + เปลี่ยนรูป)
             $sql = "UPDATE rh_announcements 
                     SET title=?, detail=?, is_pinned=?, status=?, image=?
                     WHERE announce_id=?";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("ssissi", $title, $detail, $pinned, $status, $imagePath, $id);
+            
         } elseif ($delImg === 1) {
+            // กรณีที่ 2: กดลบรูปทิ้ง (อัปเดตข้อมูล + ล้างค่ารูปลง DB เป็นค่าว่าง)
             $oldImage = getOldImagePath($conn, $id);
             if ($oldImage !== '') {
                 deleteLocalImageIfExists($oldImage);
             }
 
+            $emptyImg = '';
             $sql = "UPDATE rh_announcements 
-                    SET title=?, detail=?, is_pinned=?, status=?, image=''
+                    SET title=?, detail=?, is_pinned=?, status=?, image=?
                     WHERE announce_id=?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ssisi", $title, $detail, $pinned, $status, $id);
+            $stmt->bind_param("ssissi", $title, $detail, $pinned, $status, $emptyImg, $id);
+            
         } else {
+            // กรณีที่ 3: ไม่ได้แก้รูปเลย (อัปเดตแค่ข้อมูลตัวหนังสือ)
             $sql = "UPDATE rh_announcements 
                     SET title=?, detail=?, is_pinned=?, status=?
                     WHERE announce_id=?";
@@ -266,7 +277,7 @@ if ($action === 'add' || $action === 'update') {
     jexit([
         "ok" => $ok,
         "message" => $ok ? "บันทึกข้อมูลเรียบร้อย" : "เกิดข้อผิดพลาดในการบันทึกข้อมูล",
-        "image" => $imagePath ? normalizeImageUrl($imagePath) : null
+        "image" => $hasNewImage ? normalizeImageUrl($imagePath) : null // ส่ง path รูปใหม่กลับไป (ถ้ามี)
     ]);
 }
 

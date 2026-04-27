@@ -85,7 +85,10 @@ class BillItem {
   }
 
   double get calculatedTotal {
-    if (tenantId == null) return 0.0;
+    // แก้ไข: เอาเงื่อนไข if (tenantId == null) return 0.0; ออกไป 
+    // เพื่อให้บิลยังคำนวณเงินได้แม้ฐานข้อมูลจะไม่มีเลขไอดีคนเช่า
+    if (statusKey == "no_tenant") return 0.0; 
+    
     double currentWaterBill = waterBill > 0 ? waterBill : (waterUnit * waterPricePerUnit);
     double currentElecBill = elecBill > 0 ? elecBill : (elecUnit * elecPricePerUnit);
     return rent + currentWaterBill + currentElecBill + commonFee;
@@ -254,7 +257,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
 
     if (confirm != true) return;
 
-    List<BillItem> incompleteRooms = items.where((it) => it.tenantId != null && (it.waterUnit == 0 || it.elecUnit == 0)).toList();
+    List<BillItem> incompleteRooms = items.where((it) => it.statusKey != "no_tenant" && (it.waterUnit == 0 || it.elecUnit == 0)).toList();
 
     if (incompleteRooms.isNotEmpty) {
       if (!mounted) return;
@@ -389,7 +392,10 @@ class _BillAdminPageState extends State<BillAdminPage> {
     final filteredItems = items.where((it) {
       bool bOk = selectedBuilding == "ทั้งหมด" || it.building == selectedBuilding;
       bool fOk = selectedFloor == "ทั้งหมด" || it.floor.toString() == selectedFloor;
-      bool hasActiveTenant = it.tenantId != null && it.statusKey != "no_tenant";
+      
+      // แก้ไข: กรองเอาแค่ statusKey ไม่เท่ากับ "no_tenant" (ไม่ต้องเช็ค tenantId แล้ว)
+      bool hasActiveTenant = it.statusKey != "no_tenant";
+      
       return bOk && fOk && hasActiveTenant;
     }).toList();
 
