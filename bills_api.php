@@ -626,12 +626,21 @@ if ($action === 'bulk_send') {
 
     $settings = getDormSettings($conn, $dorm_id);
 
+    $billingDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
+
     $sqlRooms = "SELECT r.room_id, r.room_number, r.base_rent, r.tenant_id
         FROM rh_rooms r
+        LEFT JOIN rh_dorm_memberships m 
+               ON m.user_id = r.tenant_id 
+              AND m.dorm_id = r.dorm_id 
+              AND m.approve_status = 'approved'
         WHERE r.dorm_id = ?
           AND r.tenant_id IS NOT NULL
           AND r.status = 'occupied'
+          -- เช็คย้ายเข้า (ถ้าไม่มีวันที่ หรือ ย้ายเข้าก่อน/ภายในเดือนนี้ ให้ส่งได้)
+          AND (m.move_in_date IS NULL OR m.move_in_date = '0000-00-00' OR m.move_in_date <= LAST_DAY('$billingDate'))
         ORDER BY r.room_number ASC";
+    
     $stR = $conn->prepare($sqlRooms);
     $stR->bind_param('i', $dorm_id);
     $stR->execute();
@@ -716,6 +725,8 @@ if ($action === 'list') {
 
     $settings = getDormSettings($conn, $dorm_id);
 
+    $billingDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
+
     $sql = "SELECT
             r.room_id,
             r.dorm_id,
@@ -738,6 +749,10 @@ if ($action === 'list') {
         FROM rh_rooms r
         LEFT JOIN rh_buildings b ON b.building_id = r.building_id
         LEFT JOIN rh_users u ON u.user_id = r.tenant_id
+        LEFT JOIN rh_dorm_memberships mem 
+               ON mem.user_id = r.tenant_id 
+              AND mem.dorm_id = r.dorm_id 
+              AND mem.approve_status = 'approved'
         LEFT JOIN rh_payments p
                ON p.dorm_id = r.dorm_id
               AND p.room_id = r.room_id
@@ -746,6 +761,8 @@ if ($action === 'list') {
               AND p.user_id = r.tenant_id
         " . latest_meter_join_sql() . "
         WHERE r.dorm_id = ?
+          -- ถ้ามีผู้เช่า ต้องย้ายเข้าก่อนสิ้นเดือนที่เลือกดู (ถ้าไม่มีวันที่ระบุ ให้โชว์ไว้ก่อน)
+          AND (r.tenant_id IS NULL OR mem.move_in_date IS NULL OR mem.move_in_date = '0000-00-00' OR mem.move_in_date <= LAST_DAY('$billingDate'))
         ORDER BY COALESCE(b.building_name, ''), r.floor ASC, r.room_number ASC";
 
     $stmt = $conn->prepare($sql);

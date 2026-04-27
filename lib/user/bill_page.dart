@@ -814,7 +814,7 @@ class _BillPageState extends State<BillPage> {
                             elevation: 0,
                           ),
                           child: const Text(
-                            "ยืนยันลบ",
+                            "ยืนยัน",
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,

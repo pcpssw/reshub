@@ -1049,96 +1049,97 @@ class _AnnouncementAdminPageState extends State<AnnouncementAdminPage> {
     }
   }
 
-  Future<void> deleteItem(String id) async {
+Future<void> deleteItem(String id) async {
     final bool? ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(25),
         ),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Icon ส่วนหัวในวงกลมสีแดงจางๆ
               Container(
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD32F2F).withOpacity(0.1),
+                  color: Colors.red.shade50,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.delete_forever_rounded,
-                  color: Color(0xFFD32F2F),
+                  color: Colors.redAccent,
                   size: 45,
                 ),
               ),
               const SizedBox(height: 20),
+              // หัวข้อ: ตัวหนาพิเศษ (w900) ตามสไตล์เพื่อนๆ
               const Text(
                 "ลบประกาศ",
                 style: TextStyle(
-                  fontSize: fTitle,
-                  fontWeight: FontWeight.bold,
-                  color: cTextMain,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF523D2D), // cTeddy
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              // เนื้อหา: ระยะห่างบรรทัด 1.5
               const Text(
                 "คุณแน่ใจหรือไม่ที่จะลบประกาศนี้?\nข้อมูลจะหายไปอย่างถาวร",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: fBody,
-                  color: Colors.black54,
+                  fontSize: 13, // fBody/fDetail
+                  color: Colors.grey,
                   height: 1.5,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 30),
               Row(
                 children: [
+                  // ปุ่มยืนยัน (สีน้ำตาลเข้ม cTeddy)
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD32F2F),
+                        backgroundColor: const Color(0xFF523D2D), // cTeddy
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
                       ),
                       child: const Text(
-                        "ลบข้อมูล",
+                        "ยืนยัน",
                         style: TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.normal,
-                          fontSize: fBody,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
+                  // ปุ่มยกเลิก (Outlined ขอบครีมทอง)
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                          color: Color(0xFFFFDBB5),
-                        ),
+                        side: const BorderSide(color: Color(0xFFDCD2C1)), // cAccent
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: const Text(
                         "ยกเลิก",
                         style: TextStyle(
-                          color: Color(0xFF6C4E31),
-                          fontWeight: FontWeight.normal,
-                          fontSize: fBody,
+                          color: Color(0xFF523D2D), // cTeddy
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),

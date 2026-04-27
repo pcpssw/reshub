@@ -880,7 +880,7 @@ class PlatformUserDetailPage extends StatelessWidget {
               _deleteUser(context);
             },
             child: const Text(
-              "ยืนยันลบ",
+              "ยืนยัน",
               style: TextStyle(
                 color: Color(0xFFFF5252),
                 fontWeight: FontWeight.bold,

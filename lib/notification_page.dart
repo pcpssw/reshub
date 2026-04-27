@@ -133,12 +133,12 @@ class _NotificationPageState extends State<NotificationPage> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
+                        backgroundColor: cTeddy,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
                       ),
-                      child: const Text("ยืนยันลบ", 
+                      child: const Text("ยืนยัน", 
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
                     ),
                   ),

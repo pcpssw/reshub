@@ -21,11 +21,13 @@ class RepairDetailPage extends StatefulWidget {
 }
 
 class _RepairDetailPageState extends State<RepairDetailPage> {
+  // --- Theme Colors ---
   static const Color cBg = Color(0xFFF4EFE6);
   static const Color cAccent = Color(0xFFDCD2C1);
   static const Color cTextMain = Color(0xFF2A1F17);
   static const Color cDark = Color(0xFF523D2D);
 
+  // --- Font Sizes ---
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
@@ -48,12 +50,7 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
   bool get _isAdminByRole {
     final p = _platformRole.toLowerCase().trim();
     final r = _roleInDorm.toLowerCase().trim();
-    return p == 'platform_admin' ||
-        p == 'admin' ||
-        r == 'admin' ||
-        r == 'owner' ||
-        r == 'o' ||
-        r == 'a';
+    return p == 'platform_admin' || p == 'admin' || r == 'admin' || r == 'owner' || r == 'o' || r == 'a';
   }
 
   bool get _canManage => widget.canEdit || _isAdminByRole;
@@ -75,19 +72,9 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
     if (!mounted) return;
 
     setState(() {
-      _dormId =
-          prefs.getInt('dorm_id') ??
-          int.tryParse(prefs.getString('dorm_id') ?? '0') ??
-          0;
-      _platformRole = (prefs.getString('platform_role') ??
-              prefs.getString('user_role') ??
-              'user')
-          .toLowerCase();
-      _roleInDorm = (prefs.getString('role_in_dorm') ??
-              prefs.getString('dorm_role') ??
-              prefs.getString('member_role') ??
-              'tenant')
-          .toLowerCase();
+      _dormId = prefs.getInt('dorm_id') ?? int.tryParse(prefs.getString('dorm_id') ?? '0') ?? 0;
+      _platformRole = (prefs.getString('platform_role') ?? prefs.getString('user_role') ?? 'user').toLowerCase();
+      _roleInDorm = (prefs.getString('role_in_dorm') ?? prefs.getString('dorm_role') ?? prefs.getString('member_role') ?? 'tenant').toLowerCase();
     });
     await _loadRepairDetail();
   }
@@ -95,16 +82,14 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
   Future<void> _loadRepairDetail() async {
     if (widget.repair.repairId <= 0 || _dormId <= 0) return;
     try {
-      final res = await http
-          .post(
-            Uri.parse(AppConfig.url('repairs_api.php')),
-            body: {
-              'action': 'getRepairById',
-              'repair_id': widget.repair.repairId.toString(),
-              'dorm_id': _dormId.toString(),
-            },
-          )
-          .timeout(const Duration(seconds: 10));
+      final res = await http.post(
+        Uri.parse(AppConfig.url('repairs_api.php')),
+        body: {
+          'action': 'getRepairById',
+          'repair_id': widget.repair.repairId.toString(),
+          'dorm_id': _dormId.toString(),
+        },
+      ).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(res.body);
       if (!mounted) return;
@@ -113,19 +98,14 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
         final m = Map<String, dynamic>.from(data['data'] ?? {});
         setState(() {
           _tenantName = (m['full_name'] ?? '').toString().trim();
-          _roomText = "${m['building_name'] ?? ''} ${m['room_number'] ?? ''}"
-              .trim();
+          _roomText = "${m['building_name'] ?? ''} ${m['room_number'] ?? ''}".trim();
           if (_roomText.isEmpty) _roomText = (m['room_number'] ?? '-').toString();
-
           _phoneText = (m['phone'] ?? '').toString().trim();
           _detailText = (m['detail'] ?? '').toString().trim();
-
           _typeText = (m['repair_type'] ?? '').toString().trim();
           if (_typeText.isEmpty) _typeText = 'อื่น ๆ';
-
           final img = (m['image_path'] ?? '').toString().trim();
           if (img.isNotEmpty) _imageUrl = _toImageUrl(img);
-
           final statusRaw = (m['status_th'] ?? m['status'] ?? '').toString();
           _selectedStatusTh = _normalizeToThai(statusRaw);
         });
@@ -133,32 +113,26 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
     } catch (_) {}
   }
 
+  // --- Helper Methods ---
   String _normalizeToThai(String s) {
     final t = s.trim().toLowerCase();
     if (t.contains('pending') || t == 'รอดำเนินการ') return 'รอดำเนินการ';
-    if (t.contains('working') || t == 'กำลังดำเนินการ') {
-      return 'กำลังดำเนินการ';
-    }
+    if (t.contains('working') || t == 'กำลังดำเนินการ') return 'กำลังดำเนินการ';
     if (t.contains('done') || t == 'เสร็จสิ้น') return 'เสร็จสิ้น';
     return 'รอดำเนินการ';
   }
 
   String _thaiToDbKey(String th) {
     switch (th) {
-      case 'กำลังดำเนินการ':
-        return 'working';
-      case 'เสร็จสิ้น':
-        return 'done';
-      default:
-        return 'pending';
+      case 'กำลังดำเนินการ': return 'working';
+      case 'เสร็จสิ้น': return 'done';
+      default: return 'pending';
     }
   }
 
   Color _getTypeColor(String type) {
     if (type.contains('ไฟฟ้า')) return const Color(0xFFFBC02D);
-    if (type.contains('น้ำ') || type.contains('ประปา')) {
-      return const Color(0xFF0288D1);
-    }
+    if (type.contains('น้ำ') || type.contains('ประปา')) return const Color(0xFF0288D1);
     if (type.contains('แอร์')) return const Color(0xFF009688);
     if (type.contains('เฟอร์นิเจอร์')) return const Color(0xFF795548);
     return const Color(0xFF455A64);
@@ -166,9 +140,7 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
 
   IconData _typeIcon(String type) {
     if (type.contains('ไฟฟ้า')) return Icons.bolt_rounded;
-    if (type.contains('น้ำ') || type.contains('ประปา')) {
-      return Icons.water_drop_rounded;
-    }
+    if (type.contains('น้ำ') || type.contains('ประปา')) return Icons.water_drop_rounded;
     if (type.contains('แอร์')) return Icons.ac_unit_rounded;
     if (type.contains('เฟอร์นิเจอร์')) return Icons.chair_rounded;
     return Icons.construction_rounded;
@@ -184,17 +156,15 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
     setState(() => _saving = true);
     try {
       final key = _thaiToDbKey(_selectedStatusTh);
-      final res = await http
-          .post(
-            Uri.parse(AppConfig.url('repairs_api.php')),
-            body: {
-              'action': 'update_status',
-              'repair_id': widget.repair.repairId.toString(),
-              'status': key,
-              'dorm_id': _dormId.toString(),
-            },
-          )
-          .timeout(const Duration(seconds: 10));
+      final res = await http.post(
+        Uri.parse(AppConfig.url('repairs_api.php')),
+        body: {
+          'action': 'update_status',
+          'repair_id': widget.repair.repairId.toString(),
+          'status': key,
+          'dorm_id': _dormId.toString(),
+        },
+      ).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(res.body);
       if ((data['success'] == true || data['ok'] == true) && mounted) {
@@ -215,10 +185,7 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
         toolbarHeight: 55,
         title: const Text(
           'รายละเอียดงานซ่อม',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: fHeader,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: fHeader),
         ),
         centerTitle: true,
         elevation: 0.5,
@@ -258,11 +225,7 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
   }
 
   Widget _buildStatusTimeline(String statusTh) {
-    final currentStep = (statusTh == 'รอดำเนินการ')
-        ? 0
-        : (statusTh == 'กำลังดำเนินการ')
-            ? 1
-            : 2;
+    final currentStep = (statusTh == 'รอดำเนินการ') ? 0 : (statusTh == 'กำลังดำเนินการ') ? 1 : 2;
     const labels = ['รอดำเนินการ', 'กำลังซ่อม', 'เสร็จสิ้น'];
 
     return Container(
@@ -270,65 +233,28 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
       ),
       child: Column(
         children: [
           const Text(
             'สถานะปัจจุบัน',
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: cTextMain,
-              fontSize: fHeader,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w900, color: cTextMain, fontSize: fHeader),
           ),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(3, (i) {
               final isDone = i <= currentStep;
-              final color = isDone
-                  ? (currentStep == 2
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFFEF6C00))
-                  : Colors.grey.shade300;
+              final color = isDone ? (currentStep == 2 ? const Color(0xFF2E7D32) : const Color(0xFFEF6C00)) : Colors.grey.shade300;
               return Expanded(
                 child: Column(
                   children: [
                     Row(
                       children: [
-                        Expanded(
-                          child: Container(
-                            height: 3,
-                            color: i == 0
-                                ? Colors.transparent
-                                : (i <= currentStep
-                                    ? color
-                                    : Colors.grey.shade300),
-                          ),
-                        ),
-                        Icon(
-                          isDone
-                              ? Icons.check_circle_rounded
-                              : Icons.radio_button_unchecked,
-                          color: color,
-                          size: 24,
-                        ),
-                        Expanded(
-                          child: Container(
-                            height: 3,
-                            color: i == 2
-                                ? Colors.transparent
-                                : (i < currentStep
-                                    ? color
-                                    : Colors.grey.shade300),
-                          ),
-                        ),
+                        Expanded(child: Container(height: 3, color: i == 0 ? Colors.transparent : (i <= currentStep ? color : Colors.grey.shade300))),
+                        Icon(isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked, color: color, size: 24),
+                        Expanded(child: Container(height: 3, color: i == 2 ? Colors.transparent : (i < currentStep ? color : Colors.grey.shade300))),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -336,8 +262,7 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
                       labels[i],
                       style: TextStyle(
                         fontSize: fCaption,
-                        fontWeight:
-                            isDone ? FontWeight.w900 : FontWeight.bold,
+                        fontWeight: isDone ? FontWeight.w900 : FontWeight.w400,
                         color: isDone ? cTextMain : Colors.grey,
                       ),
                     ),
@@ -360,45 +285,19 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4))],
             ),
             child: AspectRatio(
               aspectRatio: 16 / 9,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
                 child: _imageUrl.isNotEmpty
-                    ? Image.network(
-                        _imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => Center(
-                          child: Icon(
-                            _typeIcon(type),
-                            size: 50,
-                            color: cAccent,
-                          ),
-                        ),
-                      )
-                    : Center(
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          size: 50,
-                          color: cAccent,
-                        ),
-                      ),
+                    ? Image.network(_imageUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => Center(child: Icon(_typeIcon(type), size: 50, color: cAccent)))
+                    : Center(child: Icon(Icons.image_not_supported_outlined, size: 50, color: cAccent)),
               ),
             ),
           ),
-          Positioned(
-            top: 12,
-            right: 12,
-            child: _buildTypePill(type, _getTypeColor(type)),
-          ),
+          Positioned(top: 12, right: 12, child: _buildTypePill(type, _getTypeColor(type))),
         ],
       ),
     );
@@ -410,26 +309,14 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 6,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(_typeIcon(text), color: Colors.white, size: 16),
           const SizedBox(width: 8),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: fCaption,
-            ),
-          ),
+          Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: fCaption)),
         ],
       ),
     );
@@ -443,44 +330,21 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: cAccent.withOpacity(0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
       ),
       child: Column(
         children: [
           if (_tenantName.isNotEmpty) ...[
             Row(
               children: [
-                const Icon(
-                  Icons.person_pin_rounded,
-                  color: Color(0xFFD84315),
-                  size: 24,
-                ),
+                const Icon(Icons.person_pin_rounded, color: Color(0xFFD84315), size: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'ชื่อผู้เช่า',
-                        style: TextStyle(
-                          fontSize: fCaption,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        _tenantName,
-                        style: const TextStyle(
-                          fontSize: fHeader,
-                          fontWeight: FontWeight.w900,
-                          color: cTextMain,
-                        ),
-                      ),
+                      const Text('ชื่อผู้เช่า', style: TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.w900)),
+                      Text(_tenantName, style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.w400, color: cTextMain)),
                     ],
                   ),
                 ),
@@ -495,31 +359,13 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.door_sliding_rounded,
-                      color: Color(0xFF1565C0),
-                      size: 24,
-                    ),
+                    const Icon(Icons.door_sliding_rounded, color: Color(0xFF1565C0), size: 24),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'เลขห้อง',
-                          style: TextStyle(
-                            fontSize: fCaption,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        Text(
-                          _roomText.isEmpty ? '-' : _roomText,
-                          style: const TextStyle(
-                            fontSize: fHeader,
-                            fontWeight: FontWeight.w900,
-                            color: cTextMain,
-                          ),
-                        ),
+                        const Text('เลขห้อง', style: TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.w900)),
+                        Text(_roomText.isEmpty ? '-' : _roomText, style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.w400, color: cTextMain)),
                       ],
                     ),
                   ],
@@ -530,31 +376,13 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.phone_in_talk_rounded,
-                      color: Color(0xFF2E7D32),
-                      size: 24,
-                    ),
+                    const Icon(Icons.phone_in_talk_rounded, color: Color(0xFF2E7D32), size: 24),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'ติดต่อ',
-                          style: TextStyle(
-                            fontSize: fCaption,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        Text(
-                          _phoneText.isEmpty ? '-' : _phoneText,
-                          style: const TextStyle(
-                            fontSize: fHeader,
-                            fontWeight: FontWeight.w900,
-                            color: cTextMain,
-                          ),
-                        ),
+                        const Text('ติดต่อ', style: TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.w900)),
+                        Text(_phoneText.isEmpty ? '-' : _phoneText, style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.w400, color: cTextMain)),
                       ],
                     ),
                   ],
@@ -574,33 +402,16 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'รายละเอียดปัญหา',
-            style: TextStyle(
-              fontSize: fCaption,
-              color: Colors.black54,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          const Text('รายละเอียดปัญหา', style: TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.w900)),
           const SizedBox(height: 12),
           Text(
             _detailText.isEmpty ? 'ไม่มีรายละเอียดเพิ่มเติม' : _detailText,
-            style: const TextStyle(
-              fontSize: fDetail,
-              color: cTextMain,
-              fontWeight: FontWeight.w700,
-              height: 1.5,
-            ),
+            style: const TextStyle(fontSize: fDetail, color: cTextMain, fontWeight: FontWeight.w400, height: 1.6),
           ),
         ],
       ),
@@ -612,81 +423,25 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cAccent, width: 1.5),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: cAccent, width: 1.5)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'จัดการสถานะงานซ่อม',
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: fHeader,
-              color: cTextMain,
-            ),
-          ),
+          const Text('จัดการสถานะงานซ่อม', style: TextStyle(fontWeight: FontWeight.w900, fontSize: fHeader, color: cTextMain)),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             value: _selectedStatusTh,
-            selectedItemBuilder: (BuildContext context) {
-              return statusList.map<Widget>((String item) {
-                return Text(
-                  item,
-                  style: const TextStyle(
-                    color: cTextMain,
-                    fontWeight: FontWeight.w900,
-                    fontSize: fBody,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                );
-              }).toList();
-            },
-            items: statusList
-                .map(
-                  (s) => DropdownMenuItem<String>(
-                    value: s,
-                    child: Text(
-                      s,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: cTextMain,
-                        fontSize: fBody,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) {
-              if (v != null) {
-                setState(() => _selectedStatusTh = v);
-              }
-            },
+            selectedItemBuilder: (context) => statusList.map((s) => Text(s, style: const TextStyle(color: cTextMain, fontWeight: FontWeight.w400, fontSize: fBody))).toList(),
+            items: statusList.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontWeight: FontWeight.w400, color: cTextMain, fontSize: fBody)))).toList(),
+            onChanged: (v) { if (v != null) setState(() => _selectedStatusTh = v); },
             decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: cBg.withOpacity(0.4),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              isDense: true, 
+              filled: true, 
+              fillColor: cBg.withOpacity(0.4), 
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), 
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
             ),
-            style: const TextStyle(
-              color: cTextMain,
-              fontWeight: FontWeight.w900,
-              fontSize: fBody,
-            ),
-            dropdownColor: Colors.white,
-            icon: const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: cTextMain,
-            ),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: cTextMain),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -694,30 +449,10 @@ class _RepairDetailPageState extends State<RepairDetailPage> {
             height: 55,
             child: ElevatedButton(
               onPressed: _saving ? null : _saveStatusToDb,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: cDark,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                elevation: 0,
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      ),
-                    )
-                  : const Text(
-                      'บันทึก',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: fHeader,
-                        color: Colors.white,
-                      ),
-                    ),
+              style: ElevatedButton.styleFrom(backgroundColor: cDark, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), elevation: 0),
+              child: _saving 
+                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) 
+                : const Text('บันทึก', style: TextStyle(fontWeight: FontWeight.w900, fontSize: fHeader, color: Colors.white)),
             ),
           ),
         ],
