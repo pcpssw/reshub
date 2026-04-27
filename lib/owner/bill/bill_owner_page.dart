@@ -111,7 +111,6 @@ class _BillAdminPageState extends State<BillAdminPage> {
   static const double fDetail = 13.0;
   static const double fCaption = 11.0;
 
-  // เพิ่ม ScrollController และตัวแปรสถานะ
   final ScrollController _scrollController = ScrollController();
   bool _showBackToTop = false;
 
@@ -152,7 +151,6 @@ class _BillAdminPageState extends State<BillAdminPage> {
     selectedMonth = now.month;
     selectedYear = now.year;
 
-    // เพิ่ม Listener ตรวจสอบการเลื่อน
     _scrollController.addListener(() {
       if (_scrollController.offset > 300) {
         if (!_showBackToTop) setState(() => _showBackToTop = true);
@@ -210,6 +208,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
           if (it.building.isNotEmpty) bSet.add(it.building);
           if (it.floor > 0) fSet.add(it.floor.toString());
         }
+        if (!mounted) return;
         setState(() {
           items = fetched;
           buildingOptions = bSet.toList()..sort();
@@ -258,6 +257,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
     List<BillItem> incompleteRooms = items.where((it) => it.tenantId != null && (it.waterUnit == 0 || it.elecUnit == 0)).toList();
 
     if (incompleteRooms.isNotEmpty) {
+      if (!mounted) return;
       await showDialog(
         context: context,
         builder: (ctx) => Dialog(
@@ -301,11 +301,13 @@ class _BillAdminPageState extends State<BillAdminPage> {
       final res = await http.post(Uri.parse(AppConfig.url("bills_api.php")), body: {"action": "bulk_send", "dorm_id": dormId.toString(), "month": selectedMonth.toString(), "year": selectedYear.toString()});
       final data = jsonDecode(res.body);
       if (data["ok"] == true) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ส่งบิลสำเร็จ ${data['created']} ห้อง")));
         await fetchBills();
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ผิดพลาด: ${data['message']}")));
-        if (mounted) setState(() => loading = false);
+        setState(() => loading = false);
       }
     } catch (e) { if (mounted) setState(() => loading = false); }
   }
@@ -322,7 +324,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
         border: isDataMissing 
             ? Border.all(color: Colors.red.shade400, width: 1.5) 
             : Border.all(color: Colors.transparent, width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
@@ -339,7 +341,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
                   Container(
                     padding: const EdgeInsets.all(10), 
                     decoration: BoxDecoration(
-                      color: sColor.withOpacity(0.1), 
+                      color: sColor.withValues(alpha: 0.1), 
                       borderRadius: BorderRadius.circular(12)
                     ), 
                     child: Icon(Icons.meeting_room_rounded, color: sColor, size: 24)
@@ -360,7 +362,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
                     children: [
                       Text("${it.calculatedTotal.toStringAsFixed(0)} ฿", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: fBody, color: cTextMain)),
                       const SizedBox(height: 4),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: sColor.withOpacity(0.2))), child: Text(it.statusLabel, style: TextStyle(color: sColor, fontSize: fCaption, fontWeight: FontWeight.bold))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: sColor.withValues(alpha: 0.2))), child: Text(it.statusLabel, style: TextStyle(color: sColor, fontSize: fCaption, fontWeight: FontWeight.bold))),
                     ],
                   ),
                 ],
@@ -402,7 +404,6 @@ class _BillAdminPageState extends State<BillAdminPage> {
         title: const Text("จัดการบิล", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader)),
         actions: [IconButton(icon: const Icon(Icons.send_rounded, color: cIcon, size: 22), onPressed: bulkSendBills)],
       ),
-      // เพิ่มปุ่ม FloatingActionButton
       floatingActionButton: _showBackToTop
           ? Padding(
               padding: const EdgeInsets.only(bottom: 80.0),
@@ -424,7 +425,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
       body: RefreshIndicator(
         onRefresh: fetchBills, color: cTextMain,
         child: CustomScrollView(
-          controller: _scrollController, // ผูกคอนโทรลเลอร์ที่นี่
+          controller: _scrollController,
           slivers: [
             SliverToBoxAdapter(child: Column(children: [_buildClassicFilters(), _buildStatusScroll()])),
             if (loading) const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: cTextMain, strokeWidth: 2)))
@@ -439,7 +440,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
                       const SizedBox(width: 8),
                       Text("ตึก $bName", style: const TextStyle(fontSize: fHeader, fontWeight: FontWeight.bold, color: cTextMain)),
                       const SizedBox(width: 8),
-                      Expanded(child: Divider(thickness: 1, color: cTextMain.withOpacity(0.1))),
+                      Expanded(child: Divider(thickness: 1, color: cTextMain.withValues(alpha: 0.1))),
                       const SizedBox(width: 8),
                       Text("${groupedByBuilding[bName]!.length} ห้อง", style: const TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.bold)),
                     ]),
@@ -490,11 +491,11 @@ class _BillAdminPageState extends State<BillAdminPage> {
     final Color bg = (key == "paid") ? const Color(0xFFF6FBF7) : (key == "unpaid") ? const Color(0xFFFFF6F6) : const Color(0xFFF3ECE7);
     return GestureDetector(
       onTap: () { if (selectedStatusKey != key) { setState(() => selectedStatusKey = key); fetchBills(); } },
-      child: AnimatedContainer(duration: const Duration(milliseconds: 200), margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4), padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: sel ? color : bg, borderRadius: BorderRadius.circular(20), border: Border.all(color: sel ? color : color.withOpacity(0.45), width: 1.15)), child: Row(mainAxisSize: MainAxisSize.min, children: [if (sel) ...[const Icon(Icons.check_circle, size: 15, color: Colors.white), const SizedBox(width: 6)], Text(label, style: TextStyle(color: sel ? Colors.white : color, fontWeight: FontWeight.bold, fontSize: fDetail))])),
+      child: AnimatedContainer(duration: const Duration(milliseconds: 200), margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4), padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: sel ? color : bg, borderRadius: BorderRadius.circular(20), border: Border.all(color: sel ? color : color.withValues(alpha: 0.45), width: 1.15)), child: Row(mainAxisSize: MainAxisSize.min, children: [if (sel) ...[const Icon(Icons.check_circle, size: 15, color: Colors.white), const SizedBox(width: 6)], Text(label, style: TextStyle(color: sel ? Colors.white : color, fontWeight: FontWeight.bold, fontSize: fDetail))])),
     );
   }
 
   Widget _badge(String t, Color c, IconData i) {
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: c.withOpacity(0.2))), child: Row(children: [Icon(i, size: 12, color: c), const SizedBox(width: 4), Text(t, style: TextStyle(color: c, fontSize: fCaption, fontWeight: FontWeight.bold))]));
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: c.withValues(alpha: 0.2))), child: Row(children: [Icon(i, size: 12, color: c), const SizedBox(width: 4), Text(t, style: TextStyle(color: c, fontSize: fCaption, fontWeight: FontWeight.bold))]));
   }
 }

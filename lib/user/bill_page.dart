@@ -20,7 +20,7 @@ class BillPage extends StatefulWidget {
 }
 
 class _BillPageState extends State<BillPage> {
-  static const double fTitle = 18.0;
+  // แก้ไข: ลบ fTitle ออกเนื่องจากไม่ได้ใช้งาน
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
@@ -336,7 +336,8 @@ class _BillPageState extends State<BillPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: _bgColor.withOpacity(0.35),
+                    // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                    color: _bgColor.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: _lineColor),
                   ),
@@ -410,7 +411,8 @@ class _BillPageState extends State<BillPage> {
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: Colors.grey.withOpacity(0.8),
+                                // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                                color: Colors.grey.withValues(alpha: 0.8),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -430,7 +432,8 @@ class _BillPageState extends State<BillPage> {
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: Colors.grey.withOpacity(0.8),
+                                // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                                color: Colors.grey.withValues(alpha: 0.8),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -454,7 +457,8 @@ class _BillPageState extends State<BillPage> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: _lineColor),
-                        color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.18),
+                        // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                        color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.18),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -554,7 +558,8 @@ class _BillPageState extends State<BillPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _lineColor.withOpacity(0.5)),
+        // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+        border: Border.all(color: _lineColor.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -618,7 +623,8 @@ class _BillPageState extends State<BillPage> {
           Icon(
             Icons.receipt_long_rounded,
             size: 80,
-            color: _mutedColor.withOpacity(0.1),
+            // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+            color: _mutedColor.withValues(alpha: 0.1),
           ),
           const SizedBox(height: 24),
           Text(
@@ -626,7 +632,8 @@ class _BillPageState extends State<BillPage> {
             style: TextStyle(
               fontSize: fHeader,
               fontWeight: FontWeight.bold,
-              color: _textColor.withOpacity(0.8),
+              // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+              color: _textColor.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 8),
@@ -1005,7 +1012,8 @@ class BankDetailPage extends StatelessWidget {
                     Icon(
                       Icons.account_balance_wallet_outlined,
                       size: 80,
-                      color: textColor.withOpacity(0.1),
+                      // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                      color: textColor.withValues(alpha: 0.1),
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -1038,7 +1046,8 @@ class BankDetailPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: bankColor.withOpacity(0.1),
+                          // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                          color: bankColor.withValues(alpha: 0.1),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         )
@@ -1052,7 +1061,8 @@ class BankDetailPage extends StatelessWidget {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: bankColor.withOpacity(0.06),
+                            // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                            color: bankColor.withValues(alpha: 0.06),
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(24),
                             ),
@@ -1095,7 +1105,8 @@ class BankDetailPage extends StatelessWidget {
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    color: bankColor.withOpacity(0.1),
+                                    // แก้ไข: เปลี่ยน withOpacity เป็น withValues
+                                    color: bankColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(

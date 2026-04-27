@@ -265,6 +265,7 @@ class _RepairPageState extends State<RepairPage> {
     if (_submitting) return;
 
     if (repairType == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("กรุณาเลือกประเภทงานซ่อม")),
       );
@@ -354,7 +355,6 @@ class _RepairPageState extends State<RepairPage> {
           ),
         ),
         actions: [
-          // ✅ แก้ไข: เอาไอคอนออก และใส่ Padding/Border แทน
           Padding(
             padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
             child: OutlinedButton(
@@ -363,9 +363,9 @@ class _RepairPageState extends State<RepairPage> {
                 MaterialPageRoute(builder: (_) => const RepairHistoryPage()),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: cAccent, width: 1.2), // สีขอบตามธีม
+                side: const BorderSide(color: cAccent, width: 1.2), 
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12), // ความโค้งของกรอบ
+                  borderRadius: BorderRadius.circular(12), 
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
@@ -382,7 +382,6 @@ class _RepairPageState extends State<RepairPage> {
         ],
       ),
       body: SingleChildScrollView(
-        // ✅ แก้ไข: เพิ่ม Padding ด้านล่าง 120 เพื่อดันเนื้อหาขึ้นมาให้พ้นเมนูหลัก
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         child: Form(
           key: _formKey,
@@ -414,7 +413,6 @@ class _RepairPageState extends State<RepairPage> {
                         ),
                 ),
               ),
-              // ✅ แถม: เพิ่มช่องว่างหลอกท้ายสุดเพื่อให้ User สามารถเลื่อนขึ้นได้สุดจริงๆ
               const SizedBox(height: 20),
             ],
           ),
@@ -431,7 +429,7 @@ class _RepairPageState extends State<RepairPage> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -471,10 +469,10 @@ class _RepairPageState extends State<RepairPage> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   decoration: BoxDecoration(
-                    color: isSel ? tColor : tColor.withOpacity(0.12),
+                    color: isSel ? tColor : tColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(
-                      color: isSel ? tColor : tColor.withOpacity(0.35),
+                      color: isSel ? tColor : tColor.withValues(alpha: 0.35),
                       width: 1.4,
                     ),
                   ),
@@ -681,7 +679,7 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
         title: const Text(
           "ประวัติการแจ้งซ่อม",
           style: TextStyle(
-            fontWeight: FontWeight.w900, // หัวข้อใหญ่ยังคงความหนาตามต้นฉบับ
+            fontWeight: FontWeight.w900, 
             color: cTextMain,
             fontSize: fHeader,
           ),
@@ -690,7 +688,7 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
       body: loading
           ? const Center(child: CircularProgressIndicator(color: cDark))
           : items.isEmpty
-              ? _buildEmptyState() // ✅ แสดงหน้าว่างถ้าไม่มีข้อมูล
+              ? _buildEmptyState() 
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 15, 14, 120),
                   itemCount: items.length,
@@ -732,7 +730,6 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
     );
   }
 
-  // ✅ หน้าตาตอนไม่มีข้อมูลแจ้งซ่อม
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -741,13 +738,13 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF523D2D).withOpacity(0.05), // cTeddy/cDark
+              color: const Color(0xFF523D2D).withValues(alpha: 0.05), 
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.assignment_late_outlined,
               size: 65,
-              color: const Color(0xFF523D2D).withOpacity(0.3),
+              color: const Color(0xFF523D2D).withValues(alpha: 0.3),
             ),
           ),
           const SizedBox(height: 24),
@@ -755,7 +752,7 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
             "ไม่มีประวัติการแจ้งซ่อม",
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.normal, // ปรับให้ไม่หนาตามสไตล์ที่คุณชอบ
+              fontWeight: FontWeight.normal, 
               color: Color(0xFF523D2D),
             ),
           ),
@@ -769,7 +766,7 @@ class _RepairHistoryPageState extends State<RepairHistoryPage> {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 100), // ดันขึ้นจากขอบล่างนิดหน่อยให้ดูสมดุล
+          const SizedBox(height: 100), 
         ],
       ),
     );
@@ -817,14 +814,13 @@ Future<bool> _showConfirmDeleteDialog() async {
           builder: (ctx) => Dialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25), // ความโค้งมน 25
+              borderRadius: BorderRadius.circular(25), 
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ไอคอนถังขยะในวงกลมสีแดง
                   Container(
                     width: 80,
                     height: 80,
@@ -839,37 +835,33 @@ Future<bool> _showConfirmDeleteDialog() async {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // หัวข้อ: ตัวหนาแบบเขาสุดๆ (w900)
                   const Text(
                     "ยืนยันการลบ",
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w900, // หนาพิเศษ
-                      color: cTextMain, // สีน้ำตาลเข้ม 0xFF523D2D
+                      fontWeight: FontWeight.w900, 
+                      color: cTextMain, 
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // เนื้อหา: ระยะบรรทัด 1.5 ให้ดูโปร่ง
                   const Text(
                     "คุณต้องการลบรายการแจ้งซ่อมนี้\nใช่หรือไม่?",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: fDetail, // 13.0
+                      fontSize: fDetail, 
                       color: Colors.grey,
-                      fontWeight: FontWeight.w600, // หนาปานกลาง
+                      fontWeight: FontWeight.w600, 
                       height: 1.5,
                     ),
                   ),
                   const SizedBox(height: 30),
-                  // แถวปุ่มกด
                   Row(
                     children: [
-                      // ปุ่มยืนยันลบ สีน้ำตาลเข้ม
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => Navigator.pop(ctx, true),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: cDark, // 0xFF523D2D
+                            backgroundColor: cDark, 
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -880,18 +872,17 @@ Future<bool> _showConfirmDeleteDialog() async {
                             "ยืนยัน",
                             style: TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.w900, // ตัวหนาที่ปุ่ม
+                              fontWeight: FontWeight.w900, 
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // ปุ่มยกเลิก แบบมีเส้นขอบ
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(ctx, false),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: cAccent), // สีครีมทอง 0xFFD7CCC8
+                            side: const BorderSide(color: cAccent), 
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -901,7 +892,7 @@ Future<bool> _showConfirmDeleteDialog() async {
                             "ยกเลิก",
                             style: TextStyle(
                               color: cTextMain,
-                              fontWeight: FontWeight.w900, // ตัวหนาที่ปุ่ม
+                              fontWeight: FontWeight.w900, 
                             ),
                           ),
                         ),
@@ -1050,9 +1041,9 @@ Future<bool> _showConfirmDeleteDialog() async {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: tColor.withOpacity(0.15),
+        color: tColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: tColor.withOpacity(0.45)),
+        border: Border.all(color: tColor.withValues(alpha: 0.45)),
       ),
       child: Text(
         type,
@@ -1078,10 +1069,10 @@ Future<bool> _showConfirmDeleteDialog() async {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cAccent.withOpacity(0.45)),
+        border: Border.all(color: cAccent.withValues(alpha: 0.45)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -1195,7 +1186,6 @@ Future<bool> _showConfirmDeleteDialog() async {
         ),
       ),
       body: SingleChildScrollView(
-        // ✅ แก้ไข: สำหรับหน้า Edit ก็นำปุ่มเข้าไปอยู่ใน scroll เหมือนกันเพื่อกันโดนบัง
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         child: Column(
           children: [
@@ -1209,7 +1199,7 @@ Future<bool> _showConfirmDeleteDialog() async {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
@@ -1302,11 +1292,11 @@ Future<bool> _showConfirmDeleteDialog() async {
                       fillColor: cBg,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: cAccent.withOpacity(0.5)),
+                        borderSide: BorderSide(color: cAccent.withValues(alpha: 0.5)),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: cAccent.withOpacity(0.8)),
+                        borderSide: BorderSide(color: cAccent.withValues(alpha: 0.8)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
@@ -1431,7 +1421,7 @@ Future<bool> _showConfirmDeleteDialog() async {
         decoration: BoxDecoration(
           color: cBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cAccent.withOpacity(0.8)),
+          border: Border.all(color: cAccent.withValues(alpha: 0.8)),
         ),
         child: Stack(
           children: [
@@ -1539,7 +1529,7 @@ class _RepairCardNoStatus extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             )
@@ -1623,10 +1613,10 @@ class _RepairCardNoStatus extends StatelessWidget {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: tColor.withOpacity(0.15),
+                              color: tColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: tColor.withOpacity(0.45),
+                                color: tColor.withValues(alpha: 0.45),
                               ),
                             ),
                             child: Row(

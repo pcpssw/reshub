@@ -628,6 +628,7 @@ if ($action === 'bulk_send') {
 
     $billingDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
 
+    // แก้ไขให้ดึงผู้เช่าจาก tenant_id ของตาราง rh_rooms โดยตรง
     $sqlRooms = "SELECT r.room_id, r.room_number, r.base_rent, r.tenant_id
         FROM rh_rooms r
         LEFT JOIN rh_dorm_memberships m 
@@ -659,6 +660,7 @@ if ($action === 'bulk_send') {
         $user_id = intval($r['tenant_id']);
         $baseRent = floatval($r['base_rent']);
 
+        // แก้ไขให้ตรวจสอบบิลซ้ำโดยอ้างอิง user_id จาก tenant_id ปัจจุบัน
         $check = $conn->prepare('SELECT payment_id FROM rh_payments WHERE dorm_id=? AND room_id=? AND user_id=? AND month=? AND year=? LIMIT 1');
         $check->bind_param('iiiii', $dorm_id, $room_id, $user_id, $month, $year);
         $check->execute();
@@ -727,6 +729,7 @@ if ($action === 'list') {
 
     $billingDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
 
+    // แก้ไขคำสั่ง SQL ให้ดึงสถานะบิลโดยอ้างอิง user_id จาก tenant_id ปัจจุบัน
     $sql = "SELECT
             r.room_id,
             r.dorm_id,
@@ -858,6 +861,7 @@ if ($action === 'set_status') {
     ];
     $newStatus = $statusMap[$status_key] ?? 'pending';
 
+    // แก้ไขคำสั่ง SQL ให้ค้นหาบิลโดยอ้างอิง user_id จาก tenant_id ปัจจุบัน
     $st = $conn->prepare('SELECT p.payment_id, p.user_id FROM rh_payments p JOIN rh_rooms r ON p.room_id = r.room_id AND p.user_id = r.tenant_id WHERE p.dorm_id=? AND p.room_id=? AND p.month=? AND p.year=? ORDER BY p.payment_id DESC LIMIT 1');
     $st->bind_param('iiii', $dorm_id, $room_id, $month, $year);
     $st->execute();

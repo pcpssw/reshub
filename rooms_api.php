@@ -170,8 +170,6 @@ if ($dorm_id <= 0) {
     out_fail('missing dorm_id', 400);
 }
 
-
-
 const T_DORMS = 'rh_dorms';
 const T_SETTINGS = 'rh_dorm_settings';
 const T_BUILDINGS = 'rh_buildings';
@@ -465,6 +463,7 @@ if ($action === 'add') {
     $room_type = trim((string)req('room_type', 'fan'));
     $rent_price = (float)req('rent_price', req('price', 0));
     $status = trim((string)req('status', 'vacant'));
+    $tenant_id = req('tenant_id') ? (int)req('tenant_id') : null; // เพิ่มการรับค่าผู้เช่า
 
     if ($room_number === '' || $floor <= 0) out_fail('ข้อมูลไม่ครบ (room_number/floor)');
     if (!in_array($room_type, ['fan', 'air'], true)) out_fail('room_type ไม่ถูกต้อง');
@@ -474,10 +473,11 @@ if ($action === 'add') {
     if ($type_id <= 0) out_fail('ไม่พบประเภทห้องของหอนี้');
     if ($rent_price <= 0) $rent_price = $default_rent;
 
+    // แก้คำสั่ง INSERT ให้บันทึก tenant_id
     $stmt = $conn->prepare(
-        'INSERT INTO rh_rooms (dorm_id, building_id, type_id, room_number, floor, base_rent, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO rh_rooms (dorm_id, building_id, type_id, room_number, floor, base_rent, status, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    $stmt->bind_param('iiisids', $dorm_id, $building_id, $type_id, $room_number, $floor, $rent_price, $status);
+    $stmt->bind_param('iiisidsi', $dorm_id, $building_id, $type_id, $room_number, $floor, $rent_price, $status, $tenant_id);
     $stmt->execute();
     $newId = (int)$conn->insert_id;
     $stmt->close();
@@ -490,6 +490,7 @@ if ($action === 'update') {
     $rent_price = (float)req('rent_price', req('price', 0));
     $room_type = trim((string)req('room_type', ''));
     $status = trim((string)req('status', ''));
+    $tenant_id = req('tenant_id') !== null ? (int)req('tenant_id') : null; // เพิ่มการรับค่าผู้เช่า
 
     if ($room_id <= 0) out_fail('room_id ไม่ถูกต้อง');
     if (!in_array($room_type, ['fan', 'air'], true)) out_fail('room_type ไม่ถูกต้อง');
@@ -499,8 +500,9 @@ if ($action === 'update') {
     if ($type_id <= 0) out_fail('ไม่พบประเภทห้องของหอนี้');
     if ($rent_price <= 0) $rent_price = $default_rent;
 
-    $stmt = $conn->prepare('UPDATE rh_rooms SET type_id=?, base_rent=?, status=? WHERE room_id=? AND dorm_id=?');
-    $stmt->bind_param('idsii', $type_id, $rent_price, $status, $room_id, $dorm_id);
+    // แก้คำสั่ง UPDATE ให้เปลี่ยนคนเช่าได้
+    $stmt = $conn->prepare('UPDATE rh_rooms SET type_id=?, base_rent=?, status=?, tenant_id=? WHERE room_id=? AND dorm_id=?');
+    $stmt->bind_param('idsiii', $type_id, $rent_price, $status, $tenant_id, $room_id, $dorm_id);
     $stmt->execute();
     $stmt->close();
 
@@ -559,7 +561,6 @@ if ($action === 'delete') {
     }
     out_fail('ไม่พบห้องนี้ในระบบ', 404);
 }
-
 
 if ($action === 'get') {
     $st = $conn->prepare("SELECT dorm_id, dorm_name, dorm_address, dorm_phone, dorm_code, status FROM " . T_DORMS . " WHERE dorm_id = ? LIMIT 1");
@@ -754,3 +755,4 @@ if ($action === 'save') {
 }
 
 out_fail('Unknown action: ' . $action, 400);
+?>
