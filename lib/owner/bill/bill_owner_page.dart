@@ -85,10 +85,7 @@ class BillItem {
   }
 
   double get calculatedTotal {
-    // แก้ไข: เอาเงื่อนไข if (tenantId == null) return 0.0; ออกไป 
-    // เพื่อให้บิลยังคำนวณเงินได้แม้ฐานข้อมูลจะไม่มีเลขไอดีคนเช่า
     if (statusKey == "no_tenant") return 0.0; 
-    
     double currentWaterBill = waterBill > 0 ? waterBill : (waterUnit * waterPricePerUnit);
     double currentElecBill = elecBill > 0 ? elecBill : (elecUnit * elecPricePerUnit);
     return rent + currentWaterBill + currentElecBill + commonFee;
@@ -153,7 +150,6 @@ class _BillAdminPageState extends State<BillAdminPage> {
     final now = DateTime.now();
     selectedMonth = now.month;
     selectedYear = now.year;
-
     _scrollController.addListener(() {
       if (_scrollController.offset > 300) {
         if (!_showBackToTop) setState(() => _showBackToTop = true);
@@ -161,16 +157,11 @@ class _BillAdminPageState extends State<BillAdminPage> {
         if (_showBackToTop) setState(() => _showBackToTop = false);
       }
     });
-
     _init();
   }
 
   void _scrollToTop() {
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-    );
+    _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
   }
 
   @override
@@ -200,12 +191,12 @@ class _BillAdminPageState extends State<BillAdminPage> {
           "year": selectedYear.toString(),
           "status": selectedStatusKey,
         },
-      );
+      ).timeout(const Duration(seconds: 15));
+
       final data = jsonDecode(res.body);
       if (data["ok"] == true) {
         final List list = data["data"] ?? [];
         final fetched = list.map((e) => BillItem.fromJson(Map<String, dynamic>.from(e))).toList();
-
         final bSet = {"ทั้งหมด"}, fSet = {"ทั้งหมด"};
         for (var it in fetched) {
           if (it.building.isNotEmpty) bSet.add(it.building);
@@ -222,8 +213,11 @@ class _BillAdminPageState extends State<BillAdminPage> {
           });
         });
       }
-    } catch (e) { debugPrint("Fetch Error: $e"); }
-    finally { if (mounted) setState(() => loading = false); }
+    } catch (e) { 
+      debugPrint("Fetch Error: $e");
+    } finally { 
+      if (mounted) setState(() => loading = false); 
+    }
   }
 
   Future<void> bulkSendBills() async {
@@ -343,10 +337,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10), 
-                    decoration: BoxDecoration(
-                      color: sColor.withValues(alpha: 0.1), 
-                      borderRadius: BorderRadius.circular(12)
-                    ), 
+                    decoration: BoxDecoration(color: sColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), 
                     child: Icon(Icons.meeting_room_rounded, color: sColor, size: 24)
                   ),
                   const SizedBox(width: 15),
@@ -392,10 +383,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
     final filteredItems = items.where((it) {
       bool bOk = selectedBuilding == "ทั้งหมด" || it.building == selectedBuilding;
       bool fOk = selectedFloor == "ทั้งหมด" || it.floor.toString() == selectedFloor;
-      
-      // แก้ไข: กรองเอาแค่ statusKey ไม่เท่ากับ "no_tenant" (ไม่ต้องเช็ค tenantId แล้ว)
       bool hasActiveTenant = it.statusKey != "no_tenant";
-      
       return bOk && fOk && hasActiveTenant;
     }).toList();
 
@@ -417,14 +405,8 @@ class _BillAdminPageState extends State<BillAdminPage> {
                 onPressed: _scrollToTop,
                 backgroundColor: cIcon,
                 elevation: 6,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.arrow_upward_rounded, 
-                  color: Colors.white,
-                  size: 28,
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 28),
               ),
             )
           : null,

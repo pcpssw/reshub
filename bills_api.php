@@ -626,20 +626,17 @@ if ($action === 'bulk_send') {
 
     $settings = getDormSettings($conn, $dorm_id);
 
-    $billingDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
-
-    // แก้ไขให้ดึงผู้เช่าจาก tenant_id ของตาราง rh_rooms โดยตรง
-    $sqlRooms = "SELECT r.room_id, r.room_number, r.base_rent, r.tenant_id
+    // ใช้ Subquery ดึงวันที่ย้ายเข้าล่าสุด เพื่อแก้ปัญหาข้อมูล pending/approved
+    $sqlRooms = "SELECT r.room_id, r.room_number, r.base_rent, r.tenant_id, mem.move_in_date, mem.created_at
         FROM rh_rooms r
-        LEFT JOIN rh_dorm_memberships m 
-               ON m.user_id = r.tenant_id 
-              AND m.dorm_id = r.dorm_id 
-              AND m.approve_status = 'approved'
+        LEFT JOIN (
+            SELECT user_id, dorm_id, MAX(move_in_date) as move_in_date, MAX(created_at) as created_at
+            FROM rh_dorm_memberships
+            GROUP BY user_id, dorm_id
+        ) mem ON mem.user_id = r.tenant_id AND mem.dorm_id = r.dorm_id
         WHERE r.dorm_id = ?
           AND r.tenant_id IS NOT NULL
           AND r.status = 'occupied'
-          -- เช็คย้ายเข้า (ถ้าไม่มีวันที่ หรือ ย้ายเข้าก่อน/ภายในเดือนนี้ ให้ส่งได้)
-          AND (m.move_in_date IS NULL OR m.move_in_date = '0000-00-00' OR m.move_in_date <= LAST_DAY('$billingDate'))
         ORDER BY r.room_number ASC";
     
     $stR = $conn->prepare($sqlRooms);
@@ -660,7 +657,23 @@ if ($action === 'bulk_send') {
         $user_id = intval($r['tenant_id']);
         $baseRent = floatval($r['base_rent']);
 
-        // แก้ไขให้ตรวจสอบบิลซ้ำโดยอ้างอิง user_id จาก tenant_id ปัจจุบัน
+        $move_in_date = $r['move_in_date'];
+        
+        // ถ้าไม่รู้วันย้ายเข้า ให้ดึงวันที่ระบบสร้างชื่อมาใช้ดักแทน
+        if (empty($move_in_date) || strpos($move_in_date, '0000-00-00') !== false) {
+            $move_in_date = $r['created_at'] ?? null;
+        }
+
+        // เช็คว่าเดือนที่จะออกบิล อยู่ก่อนเดือนที่ย้ายเข้าหรือไม่
+        if (!empty($move_in_date) && strpos($move_in_date, '0000-00-00') === false) {
+            $mYear = (int)date('Y', strtotime($move_in_date));
+            $mMonth = (int)date('n', strtotime($move_in_date));
+            if ($year < $mYear || ($year === $mYear && $month < $mMonth)) {
+                $skipped++;
+                continue; // ข้ามการสร้างบิล
+            }
+        }
+
         $check = $conn->prepare('SELECT payment_id FROM rh_payments WHERE dorm_id=? AND room_id=? AND user_id=? AND month=? AND year=? LIMIT 1');
         $check->bind_param('iiiii', $dorm_id, $room_id, $user_id, $month, $year);
         $check->execute();
@@ -727,9 +740,7 @@ if ($action === 'list') {
 
     $settings = getDormSettings($conn, $dorm_id);
 
-    $billingDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
-
-    // แก้ไขคำสั่ง SQL ให้ดึงสถานะบิลโดยอ้างอิง user_id จาก tenant_id ปัจจุบัน
+    // ใช้ Subquery แก้ปัญหาหลุดสถานะ
     $sql = "SELECT
             r.room_id,
             r.dorm_id,
@@ -748,14 +759,17 @@ if ($action === 'list') {
             m.water_old,
             m.water_new,
             m.elec_old,
-            m.elec_new
+            m.elec_new,
+            mem.move_in_date,
+            mem.created_at
         FROM rh_rooms r
         LEFT JOIN rh_buildings b ON b.building_id = r.building_id
         LEFT JOIN rh_users u ON u.user_id = r.tenant_id
-        LEFT JOIN rh_dorm_memberships mem 
-               ON mem.user_id = r.tenant_id 
-              AND mem.dorm_id = r.dorm_id 
-              AND mem.approve_status = 'approved'
+        LEFT JOIN (
+            SELECT user_id, dorm_id, MAX(move_in_date) as move_in_date, MAX(created_at) as created_at
+            FROM rh_dorm_memberships
+            GROUP BY user_id, dorm_id
+        ) mem ON mem.user_id = r.tenant_id AND mem.dorm_id = r.dorm_id
         LEFT JOIN rh_payments p
                ON p.dorm_id = r.dorm_id
               AND p.room_id = r.room_id
@@ -764,8 +778,6 @@ if ($action === 'list') {
               AND p.user_id = r.tenant_id
         " . latest_meter_join_sql() . "
         WHERE r.dorm_id = ?
-          -- ถ้ามีผู้เช่า ต้องย้ายเข้าก่อนสิ้นเดือนที่เลือกดู (ถ้าไม่มีวันที่ระบุ ให้โชว์ไว้ก่อน)
-          AND (r.tenant_id IS NULL OR mem.move_in_date IS NULL OR mem.move_in_date = '0000-00-00' OR mem.move_in_date <= LAST_DAY('$billingDate'))
         ORDER BY COALESCE(b.building_name, ''), r.floor ASC, r.room_number ASC";
 
     $stmt = $conn->prepare($sql);
@@ -795,7 +807,46 @@ if ($action === 'list') {
             $settings['electric_rate']
         );
 
-        $hasTenant = !empty($row['tenant_id']);
+        $move_in_date = $row['move_in_date'];
+        
+        if (empty($move_in_date) || strpos($move_in_date, '0000-00-00') !== false) {
+            $move_in_date = $row['created_at'] ?? null;
+        }
+
+        $isBeforeMoveIn = false;
+        
+        if (!empty($move_in_date) && strpos($move_in_date, '0000-00-00') === false) {
+            $mYear = (int)date('Y', strtotime($move_in_date));
+            $mMonth = (int)date('n', strtotime($move_in_date));
+            if ($year < $mYear || ($year === $mYear && $month < $mMonth)) {
+                $isBeforeMoveIn = true; 
+            }
+        }
+
+        // หากเดือนที่ดูอยู่ อยู่ก่อนวันที่ย้ายเข้า ล้างข้อมูลทิ้งกลางอากาศเพื่อบังคับเป็นห้องว่าง 100%
+        if ($isBeforeMoveIn) {
+            $hasTenant = false;
+            $row['tenant_id'] = null;
+            $row['full_name'] = null;
+            $row['phone'] = null;
+            $row['payment_id'] = null;
+            $row['payment_status'] = 'pending';
+            $row['total_amount'] = 0;
+            $row['slip_image'] = null;
+            $row['payment_date'] = null;
+            
+            $parts['rent'] = 0;
+            $parts['utility_total'] = 0;
+            $parts['common_fee'] = 0;
+            $parts['total'] = 0;
+            $parts['water_bill'] = 0;
+            $parts['elec_bill'] = 0;
+            $parts['water_unit'] = 0;
+            $parts['elec_unit'] = 0;
+        } else {
+            $hasTenant = !empty($row['tenant_id']);
+        }
+
         $stt = map_status($row['payment_status'] ?? '', $month, $year, $hasTenant, $settings['billing_day']);
 
         if ($statusFilter !== 'all' && $statusFilter !== '' && $stt['key'] !== $statusFilter) {
@@ -814,9 +865,9 @@ if ($action === 'list') {
             'room_number' => (string)($row['room_number'] ?? ''),
             'building' => (string)($row['building_name'] ?? 'A'),
             'floor' => intval($row['floor'] ?? 0),
-            'tenant_id' => empty($row['tenant_id']) ? null : intval($row['tenant_id']),
-            'full_name' => $row['full_name'] ?? null,
-            'phone' => $row['phone'] ?? null,
+            'tenant_id' => $hasTenant ? intval($row['tenant_id']) : null,
+            'full_name' => $hasTenant ? $row['full_name'] : null,
+            'phone' => $hasTenant ? $row['phone'] : null,
             'month' => $month,
             'year' => $year,
             'due_date' => due_date_str($year, $month, $settings['billing_day']),
@@ -861,7 +912,6 @@ if ($action === 'set_status') {
     ];
     $newStatus = $statusMap[$status_key] ?? 'pending';
 
-    // แก้ไขคำสั่ง SQL ให้ค้นหาบิลโดยอ้างอิง user_id จาก tenant_id ปัจจุบัน
     $st = $conn->prepare('SELECT p.payment_id, p.user_id FROM rh_payments p JOIN rh_rooms r ON p.room_id = r.room_id AND p.user_id = r.tenant_id WHERE p.dorm_id=? AND p.room_id=? AND p.month=? AND p.year=? ORDER BY p.payment_id DESC LIMIT 1');
     $st->bind_param('iiii', $dorm_id, $room_id, $month, $year);
     $st->execute();
