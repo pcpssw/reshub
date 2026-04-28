@@ -116,7 +116,7 @@ class _DormSetupPageState extends State<DormSetupPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: cBg,
                   shape: BoxShape.circle,
                 ),
@@ -170,8 +170,25 @@ class _DormSetupPageState extends State<DormSetupPage> {
   }
 
   Future<void> _generateRooms() async {
-    if (buildingNames.isEmpty) { _snack("กรุณากดปุ่มบวกเพื่อเพิ่มชื่อตึกก่อน"); return; }
+    if (buildingNames.isEmpty) { 
+      _snack("กรุณากดปุ่มบวกเพื่อเพิ่มชื่อตึกก่อน"); 
+      return; 
+    }
     
+    // ดึงค่าราคาห้องมาตรวจสอบ (ถ้าแปลงไม่ได้ หรือเป็นค่าว่าง จะได้ค่า 0)
+    final double rentFan = double.tryParse(rentFanCtrl.text.trim()) ?? 0;
+    final double rentAir = double.tryParse(rentAirCtrl.text.trim()) ?? 0;
+
+    // ตรวจสอบว่ากรอกราคาห้องตามประเภทห้องเริ่มต้นที่จะสร้างหรือยัง
+    if (defaultType == "fan" && rentFan <= 0) {
+      _snack("กรุณากรอกราคาห้องพัดลม และกดบันทึกราคาก่อนสร้างห้อง");
+      return;
+    }
+    if (defaultType == "air" && rentAir <= 0) {
+      _snack("กรุณากรอกราคาห้องแอร์ และกดบันทึกราคาก่อนสร้างห้อง");
+      return;
+    }
+
     final bool? confirm = await _showConfirmDialog(
       title: "ยืนยันการสร้างห้อง",
       message: "ระบบจะสร้างตึก ${buildingNames.join(', ')} \nจำนวน ${floorsCtrl.text} ชั้น ชั้นละ ${roomsPerFloorCtrl.text} ห้อง \nต้องการดำเนินการหรือไม่ ?",

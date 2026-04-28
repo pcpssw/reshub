@@ -271,12 +271,12 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
     if (room.status == RoomStatus.available) {
       sColor = Colors.green.shade700;
       sLabel = "ว่าง";
-      sIcon = room.type == RoomType.air ? Icons.wind_power : Icons.air_rounded;
+      sIcon = room.type == RoomType.air ? Icons.ac_unit : Icons.wind_power;
       bgColor = Colors.green.shade50;
     } else if (room.status == RoomStatus.occupied) {
       sColor = Colors.red.shade700;
       sLabel = "ไม่ว่าง";
-      sIcon = room.type == RoomType.air ? Icons.wind_power : Icons.air_rounded;
+      sIcon = room.type == RoomType.air ? Icons.ac_unit : Icons.wind_power;
       bgColor = Colors.red.shade50;
     } else {
       sColor = cIcon;
@@ -328,14 +328,7 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
                 ),
               ],
             ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Text(
-                room.type == RoomType.air ? "แอร์" : "พัดลม",
-                style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: room.type == RoomType.air ? Colors.blue : Colors.orange),
-              ),
-            ),
+     
           ],
         ),
       ),

@@ -42,7 +42,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int userId = 0, dormId = 0;
   String displayName = "ผู้ดูแล", dormName = "";
   
-  // 🚩 แก้ไข: เก็บสถานะหอพัก (ค่าเริ่มต้นเป็น active)
+  // 🚩 เก็บสถานะหอพัก (ค่าเริ่มต้นเป็น active)
   String dormStatus = "active"; 
 
   int pendingApproveCount = 0;
@@ -67,7 +67,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     super.dispose();
   }
 
-void _showDormClosedDialog() {
+  void _showDormClosedDialog() {
     showDialog(
       context: context,
       barrierDismissible: false, // 🔒 ล็อกหน้าจอห้ามกดปิด
@@ -185,7 +185,6 @@ void _showDormClosedDialog() {
     await _fetchDormName();
   }
 
-  // 🚩 จุดแก้ไขสำคัญ: เช็กคำว่า "suspended" ให้ตรงกับในรูปเบสคุณ
   Future<void> _fetchDormName() async {
     if (dormId == 0) return;
     try {
@@ -195,7 +194,7 @@ void _showDormClosedDialog() {
         if (mounted) {
           setState(() {
             dormName = (data["dorm"]["dorm_name"] ?? dormName).toString();
-            // ดึงสถานะ (เช็กชื่อฟิลด์ 'status' ให้ตรงตามรูปที่ส่งมา)
+            // ดึงสถานะ
             dormStatus = (data["dorm"]["status"] ?? "active").toString().toLowerCase();
           });
 
@@ -276,7 +275,6 @@ void _showDormClosedDialog() {
     return AppConfig.url(image);
   }
 
-  // 🚩 จุดเช็กก่อนเข้าหน้าอื่น (ป้องการการกดทะลุ)
   Future<bool> _ensureAdmin(BuildContext context) async {
     if (dormStatus == "suspended") {
       _showDormClosedDialog();
@@ -487,7 +485,23 @@ void _showDormClosedDialog() {
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnnouncementAdminPage())),
                     child: Row(
                       children: [
-                        if (imageUrl.isNotEmpty) SizedBox(width: 110, height: double.infinity, child: Image.network(imageUrl, fit: BoxFit.cover)),
+                        SizedBox(
+                          width: 110, 
+                          height: double.infinity, 
+                          child: imageUrl.isNotEmpty
+                            ? Image.network(
+                                imageUrl, 
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  color: cCream,
+                                  child: const Icon(Icons.campaign_rounded, color: cBrown, size: 40),
+                                ),
+                              )
+                            : Container(
+                                color: cCream,
+                                child: const Icon(Icons.campaign_rounded, color: cBrown, size: 40),
+                              ),
+                        ),
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
