@@ -56,6 +56,7 @@ if ($action === "get") {
                 r.room_id, r.room_number, r.tenant_id,
                 COALESCE(u.full_name, '') AS full_name,
                 COALESCE(b.building_name, '') AS building,
+                COALESCE(dm.move_in_date, '') AS move_in_date,
                 COALESCE((
                     SELECT water_new FROM rh_meter 
                     WHERE room_id = r.room_id 
@@ -73,6 +74,7 @@ if ($action === "get") {
             FROM rh_rooms r
             LEFT JOIN rh_users u ON u.user_id = r.tenant_id
             LEFT JOIN rh_buildings b ON b.building_id = r.building_id
+            LEFT JOIN rh_dorm_memberships dm ON dm.user_id = r.tenant_id AND dm.room_id = r.room_id
             LEFT JOIN rh_meter cm
                 ON cm.room_id = r.room_id
                AND cm.month = ?
@@ -93,6 +95,7 @@ if ($action === "get") {
                 "building" => (string)$row["building"],
                 "tenant_id" => empty($row["tenant_id"]) ? null : (int)$row["tenant_id"],
                 "full_name" => (string)$row["full_name"],
+                "move_in_date" => (string)$row["move_in_date"],
                 "prev_water_meter" => (int)$row["prev_w"],
                 "prev_electric_meter" => (int)$row["prev_e"],
                 "current_water_meter" => (int)$row["cur_w"],

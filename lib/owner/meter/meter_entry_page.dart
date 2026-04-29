@@ -218,7 +218,25 @@ class _MeterEntryPageState extends State<MeterEntryPage>
           final String tenantName =
               (map["full_name"] ?? "").toString().trim();
 
-          final bool hasTenant = tenantId > 0 || tenantName.isNotEmpty;
+          // 💡 ตรวจสอบวันที่เข้าอยู่ (ถ้าชื่อฟิลด์ใน DB ไม่ใช่ move_in_date ให้เปลี่ยนตรงนี้นะครับ)
+          final String moveInDateStr = map["move_in_date"]?.toString() ?? "";
+          bool isActuallyLivingHere = true; // ตัวแปรเช็กว่าอยู่จริงในเดือนที่เลือกไหม
+
+          if (moveInDateStr.isNotEmpty) {
+            try {
+              final moveInDate = DateTime.parse(moveInDateStr);
+              // ถ้าย้ายเข้ามาในปี/เดือนที่ "มากกว่า" เดือนที่กำลังเลือกใน Dropdown แปลว่ายังไม่เข้าอยู่
+              if (moveInDate.year > selectedMonth.year || 
+                 (moveInDate.year == selectedMonth.year && moveInDate.month > selectedMonth.month)) {
+                isActuallyLivingHere = false; 
+              }
+            } catch (e) {
+              debugPrint("Parse date error: $e");
+            }
+          }
+
+          // 💡 เช็กว่ามีผู้เช่าและย้ายเข้ามาในเดือนนั้นแล้วจริงๆ
+          final bool hasTenant = (tenantId > 0 || tenantName.isNotEmpty) && isActuallyLivingHere;
 
           rooms.add(
             _RoomRow(
@@ -307,7 +325,7 @@ class _MeterEntryPageState extends State<MeterEntryPage>
 
       final resp = jsonDecode(res.body);
       if (resp["ok"] == true) {
-        _snack("บันทึกเรียบร้อย ✅");
+        _snack("บันทึกเรียบร้อย");
         await _loadData(); // โหลดข้อมูลใหม่เพื่อรีเซ็ตค่า initWater/initElec
       } else {
         _snack("บันทึกไม่สำเร็จ: ${resp["message"] ?? "ลองใหม่อีกครั้ง"}");
