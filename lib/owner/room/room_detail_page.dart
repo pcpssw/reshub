@@ -33,6 +33,8 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
   static const double fCaption = 11.0;
 
   late TextEditingController rentController;
+  late TextEditingController offlineNameController; 
+  late TextEditingController offlinePhoneController; 
   late RoomType type;
   late RoomStatus status;
   
@@ -44,6 +46,8 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
     super.initState();
     _room = widget.room;
     rentController = TextEditingController(text: _room.rent.toString());
+    offlineNameController = TextEditingController(); 
+    offlinePhoneController = TextEditingController(); 
     type = _room.type;
     status = _room.status;
   }
@@ -51,6 +55,8 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
   @override
   void dispose() {
     rentController.dispose();
+    offlineNameController.dispose(); 
+    offlinePhoneController.dispose(); 
     super.dispose();
   }
 
@@ -66,7 +72,6 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon ส่วนหัว วงกลมสีแดง
               Container(
                 width: 80,
                 height: 80,
@@ -81,17 +86,15 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              // หัวข้อ สีน้ำตาลเข้ม
               const Text(
                 "ยืนยันการลบห้อง",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF523D2D), // cTeddy
+                  color: Color(0xFF523D2D),
                 ),
               ),
               const SizedBox(height: 10),
-              // เนื้อหาคำถาม พร้อมเว้นระยะบรรทัด (height: 1.5)
               Text(
                 "คุณแน่ใจใช่ไหมที่จะลบห้อง\n${_room.roomNo} ใช่หรือไม่?",
                 textAlign: TextAlign.center,
@@ -102,15 +105,13 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                 ),
               ),
               const SizedBox(height: 30),
-              // แถวปุ่มกด
               Row(
                 children: [
-                  // ปุ่มยืนยัน (ElevatedButton สีน้ำตาลเข้ม)
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF523D2D), // cTeddy
+                        backgroundColor: const Color(0xFF523D2D),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -127,7 +128,6 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // ปุ่มกลับ (OutlinedButton ขอบสีครีมทอง)
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, false),
@@ -141,7 +141,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                       child: const Text(
                         "ยกเลิก",
                         style: TextStyle(
-                          color: Color(0xFF523D2D), // cTeddy
+                          color: Color(0xFF523D2D),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -155,7 +155,6 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
       ),
     );
 
-    // เช็คค่าที่ส่งกลับมา ถ้าไม่ใช่ true ให้จบทันที
     if (confirm != true) return;
 
     setState(() => saving = true);
@@ -193,6 +192,8 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
           "rent_price": rentController.text.trim(),
           "room_type": type.dbValue,
           "status": status.dbValue,
+          "offline_name": offlineNameController.text.trim(), 
+          "offline_phone": offlinePhoneController.text.trim(), 
         },
       );
       final data = jsonDecode(res.body);
@@ -326,7 +327,6 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
             controller: rentController,
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
-            // ลดขนาดตัวเลขลงเหลือ 22 ให้ดูพอดี
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: cTextMain),
             decoration: InputDecoration(
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -377,6 +377,59 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
           _statusBtn(RoomStatus.available, "ว่าง", Icons.check_circle_outline),
           const SizedBox(height: 8),
           _statusBtn(RoomStatus.occupied, "ไม่ว่าง", Icons.person_off_outlined),
+
+          if (status == RoomStatus.occupied && _room.tenant == null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cBg.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("ระบุชื่อผู้เช่า (กรณีไม่มีแอป)", 
+                      style: TextStyle(fontSize: fCaption, color: Colors.grey, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: offlineNameController,
+                    style: const TextStyle(fontSize: fBody, color: cTextMain),
+                    decoration: InputDecoration(
+                      hintText: "เช่น คุณป้าสมศรี...",
+                      hintStyle: const TextStyle(color: Colors.grey, fontSize: fBody),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: cBorder)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: cBorder)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text("เบอร์โทรศัพท์", 
+                      style: TextStyle(fontSize: fCaption, color: Colors.grey, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: offlinePhoneController,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(fontSize: fBody, color: cTextMain),
+                    decoration: InputDecoration(
+                      hintText: "เช่น 0812345678",
+                      hintStyle: const TextStyle(color: Colors.grey, fontSize: fBody),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: cBorder)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: cBorder)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 8),
           _statusBtn(RoomStatus.maintenance, "ซ่อม", Icons.build_circle_outlined),
         ],

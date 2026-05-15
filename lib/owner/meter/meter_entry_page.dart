@@ -62,7 +62,6 @@ class _MeterEntryPageState extends State<MeterEntryPage>
 
   bool _hasUnsavedData() {
     for (var r in rooms) {
-      if (!r.hasTenant) continue;
       if (r.waterCtrl.text != r.initWater || r.elecCtrl.text != r.initElec) {
         return true;
       }
@@ -218,14 +217,12 @@ class _MeterEntryPageState extends State<MeterEntryPage>
           final String tenantName =
               (map["full_name"] ?? "").toString().trim();
 
-          // 💡 ตรวจสอบวันที่เข้าอยู่ (ถ้าชื่อฟิลด์ใน DB ไม่ใช่ move_in_date ให้เปลี่ยนตรงนี้นะครับ)
           final String moveInDateStr = map["move_in_date"]?.toString() ?? "";
-          bool isActuallyLivingHere = true; // ตัวแปรเช็กว่าอยู่จริงในเดือนที่เลือกไหม
+          bool isActuallyLivingHere = true; 
 
           if (moveInDateStr.isNotEmpty) {
             try {
               final moveInDate = DateTime.parse(moveInDateStr);
-              // ถ้าย้ายเข้ามาในปี/เดือนที่ "มากกว่า" เดือนที่กำลังเลือกใน Dropdown แปลว่ายังไม่เข้าอยู่
               if (moveInDate.year > selectedMonth.year || 
                  (moveInDate.year == selectedMonth.year && moveInDate.month > selectedMonth.month)) {
                 isActuallyLivingHere = false; 
@@ -235,7 +232,6 @@ class _MeterEntryPageState extends State<MeterEntryPage>
             }
           }
 
-          // 💡 เช็กว่ามีผู้เช่าและย้ายเข้ามาในเดือนนั้นแล้วจริงๆ
           final bool hasTenant = (tenantId > 0 || tenantName.isNotEmpty) && isActuallyLivingHere;
 
           rooms.add(
@@ -264,24 +260,19 @@ class _MeterEntryPageState extends State<MeterEntryPage>
     }
   }
 
-  // ✅ แก้ไข: ฟังก์ชันบันทึกข้อมูลแบบไม่ให้ค่าหาย
   Future<void> _saveAllData() async {
     final items = <Map<String, dynamic>>[];
 
     for (var r in rooms) {
-      if (!r.hasTenant) continue;
-
       final wVal = r.waterCtrl.text.trim();
       final eVal = r.elecCtrl.text.trim();
 
-      // เช็คว่ามีการเปลี่ยนแปลงค่าใดค่าหนึ่งหรือไม่
       bool waterChanged = wVal != r.initWater;
       bool elecChanged = eVal != r.initElec;
 
       if (waterChanged || elecChanged) {
         final Map<String, dynamic> row = {"room_id": r.roomId};
 
-        // ตรวจสอบและใส่เลขนน้ำ
         final intW = int.tryParse(wVal) ?? 0;
         if (wVal.isNotEmpty && intW < r.prevWater) {
           _snack("เลขน้ำห้อง ${r.label} ต่ำกว่าเดือนก่อน");
@@ -289,7 +280,6 @@ class _MeterEntryPageState extends State<MeterEntryPage>
         }
         row["water_meter"] = wVal.isEmpty ? 0 : intW;
 
-        // ตรวจสอบและใส่เลขไฟ
         final intE = int.tryParse(eVal) ?? 0;
         if (eVal.isNotEmpty && intE < r.prevElec) {
           _snack("เลขไฟห้อง ${r.label} ต่ำกว่าเดือนก่อน");
@@ -326,7 +316,7 @@ class _MeterEntryPageState extends State<MeterEntryPage>
       final resp = jsonDecode(res.body);
       if (resp["ok"] == true) {
         _snack("บันทึกเรียบร้อย");
-        await _loadData(); // โหลดข้อมูลใหม่เพื่อรีเซ็ตค่า initWater/initElec
+        await _loadData(); 
       } else {
         _snack("บันทึกไม่สำเร็จ: ${resp["message"] ?? "ลองใหม่อีกครั้ง"}");
       }
@@ -346,13 +336,13 @@ class _MeterEntryPageState extends State<MeterEntryPage>
     final nowText = ctrl.text.trim();
     final now = int.tryParse(nowText) ?? 0;
     final used = nowText.isEmpty ? 0 : max(0, now - prev);
-    final bool isError = r.hasTenant && nowText.isNotEmpty && now < prev;
+    final bool isError = nowText.isNotEmpty && now < prev;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: r.hasTenant ? Colors.white : const Color(0xFFF7F4EF),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
@@ -362,9 +352,7 @@ class _MeterEntryPageState extends State<MeterEntryPage>
           )
         ],
         border: Border.all(
-          color: isError
-              ? Colors.red
-              : (r.hasTenant ? Colors.transparent : cAccent),
+          color: isError ? Colors.red : Colors.transparent,
           width: 1.2,
         ),
       ),
@@ -374,50 +362,52 @@ class _MeterEntryPageState extends State<MeterEntryPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  r.label,
-                  style: GoogleFonts.kanit(
-                    fontWeight: FontWeight.w600,
-                    fontSize: fTitle,
-                    color: cTextMain,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                if (r.hasTenant)
-                  Text(
-                    "ครั้งก่อน: $prev",
-                    style: GoogleFonts.kanit(
-                      color: Colors.grey,
-                      fontSize: fDetail,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  )
-                else
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.lock_outline_rounded,
-                        size: 14,
-                        color: Colors.grey,
+                Row(
+                  children: [
+                    Text(
+                      r.label,
+                      style: GoogleFonts.kanit(
+                        fontWeight: FontWeight.w600,
+                        fontSize: fTitle,
+                        color: cTextMain,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        "ห้องว่าง",
-                        style: GoogleFonts.kanit(
-                          color: Colors.grey,
-                          fontSize: fDetail,
-                          fontWeight: FontWeight.w500,
+                    ),
+                    if (!r.hasTenant) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          "ว่าง",
+                          style: GoogleFonts.kanit(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    ],
+                    ]
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "ครั้งก่อน: $prev",
+                  style: GoogleFonts.kanit(
+                    color: Colors.grey,
+                    fontSize: fDetail,
+                    fontWeight: FontWeight.normal,
                   ),
+                ),
               ],
             ),
           ),
           Column(
             children: [
               Text(
-                r.hasTenant ? "ใช้ไป" : "สถานะ",
+                "ใช้ไป",
                 style: GoogleFonts.kanit(
                   color: Colors.grey,
                   fontSize: fCaption,
@@ -425,10 +415,10 @@ class _MeterEntryPageState extends State<MeterEntryPage>
                 ),
               ),
               Text(
-                r.hasTenant ? "$used" : "-",
+                "$used",
                 style: GoogleFonts.kanit(
                   fontWeight: FontWeight.bold,
-                  color: r.hasTenant ? themeColor : Colors.grey,
+                  color: themeColor,
                   fontSize: 16,
                 ),
               ),
@@ -439,27 +429,25 @@ class _MeterEntryPageState extends State<MeterEntryPage>
             width: 90,
             child: TextField(
               controller: ctrl,
-              enabled: r.hasTenant,
-              readOnly: !r.hasTenant,
+              enabled: true,
+              readOnly: false,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               style: GoogleFonts.kanit(
                 fontWeight: FontWeight.normal,
                 fontSize: fBody,
-                color: r.hasTenant ? cTextMain : Colors.grey,
+                color: cTextMain,
               ),
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                hintText: r.hasTenant ? "$prev" : "-",
+                hintText: "$prev",
                 hintStyle: GoogleFonts.kanit(
                   fontSize: fBody,
                   color: Colors.grey.withOpacity(0.4),
                 ),
                 filled: true,
                 isDense: true,
-                fillColor: !r.hasTenant
-                    ? const Color(0xFFEDE7DD)
-                    : isError
+                fillColor: isError
                         ? Colors.red.shade50
                         : (nowText != initVal
                             ? themeColor.withOpacity(0.05)
@@ -470,7 +458,7 @@ class _MeterEntryPageState extends State<MeterEntryPage>
                   borderSide: BorderSide.none,
                 ),
               ),
-              onChanged: r.hasTenant ? (_) => setState(() {}) : null,
+              onChanged: (_) => setState(() {}),
             ),
           ),
         ],

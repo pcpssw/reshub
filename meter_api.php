@@ -60,13 +60,13 @@ if ($action === "get") {
                 COALESCE((
                     SELECT water_new FROM rh_meter 
                     WHERE room_id = r.room_id 
-                    AND NOT (month = ? AND year = ? AND user_id = r.tenant_id)
+                    AND NOT (month = ? AND year = ?)
                     ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1
                 ), 0) AS prev_w,
                 COALESCE((
                     SELECT elec_new FROM rh_meter 
                     WHERE room_id = r.room_id 
-                    AND NOT (month = ? AND year = ? AND user_id = r.tenant_id)
+                    AND NOT (month = ? AND year = ?)
                     ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1
                 ), 0) AS prev_e,
                 COALESCE(cm.water_new, 0) AS cur_w,
@@ -79,7 +79,6 @@ if ($action === "get") {
                 ON cm.room_id = r.room_id
                AND cm.month = ?
                AND cm.year = ?
-               AND cm.user_id = r.tenant_id
             WHERE r.dorm_id = ?
             ORDER BY b.building_name, r.room_number
         ";
@@ -119,11 +118,11 @@ elseif ($action === "save") {
             $stTenant = $conn->prepare("SELECT tenant_id FROM rh_rooms WHERE room_id=? LIMIT 1");
             $stTenant->bind_param("i", $room_id);
             $stTenant->execute();
-            $tid = $stTenant->get_result()->fetch_assoc()['tenant_id'] ?? 0;
-            if ($tid <= 0) continue;
+            $tid_row = $stTenant->get_result()->fetch_assoc();
+            $tid = !empty($tid_row['tenant_id']) ? (int)$tid_row['tenant_id'] : 0;
 
-            $stPrev = $conn->prepare("SELECT water_new, elec_new FROM rh_meter WHERE room_id=? AND NOT (month=? AND year=? AND user_id=?) ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1");
-            $stPrev->bind_param("iiii", $room_id, $month, $year, $tid);
+            $stPrev = $conn->prepare("SELECT water_new, elec_new FROM rh_meter WHERE room_id=? AND NOT (month=? AND year=?) ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1");
+            $stPrev->bind_param("iii", $room_id, $month, $year);
             $stPrev->execute();
             $prev = $stPrev->get_result()->fetch_assoc();
             
@@ -132,14 +131,14 @@ elseif ($action === "save") {
             $newW = (int)($it['water_meter'] ?? 0);
             $newE = (int)($it['electric_meter'] ?? 0);
 
-            $stCur = $conn->prepare("SELECT reading_id FROM rh_meter WHERE room_id=? AND month=? AND year=? AND user_id=?");
-            $stCur->bind_param("iiii", $room_id, $month, $year, $tid);
+            $stCur = $conn->prepare("SELECT reading_id FROM rh_meter WHERE room_id=? AND month=? AND year=?");
+            $stCur->bind_param("iii", $room_id, $month, $year);
             $stCur->execute();
             $curData = $stCur->get_result()->fetch_assoc();
 
             if ($curData) {
-                $stUpd = $conn->prepare("UPDATE rh_meter SET water_old=?, water_new=?, elec_old=?, elec_new=? WHERE reading_id=?");
-                $stUpd->bind_param("iiiii", $prevW, $newW, $prevE, $newE, $curData['reading_id']);
+                $stUpd = $conn->prepare("UPDATE rh_meter SET water_old=?, water_new=?, elec_old=?, elec_new=?, user_id=? WHERE reading_id=?");
+                $stUpd->bind_param("iiiiii", $prevW, $newW, $prevE, $newE, $tid, $curData['reading_id']);
                 $stUpd->execute();
             } else {
                 $stIns = $conn->prepare("INSERT INTO rh_meter (dorm_id, room_id, month, year, water_old, water_new, elec_old, elec_new, user_id) VALUES (?,?,?,?,?,?,?,?,?)");

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // สำหรับการจำกัด Format การพิมพ์
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
@@ -338,6 +339,7 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       final uri = Uri.parse("${AppConfig.baseUrl}/auth_api.php");
       final res = await http.post(uri, body: {
+        "action": "register", 
         "full_name": fullNameCtrl.text.trim(),
         "phone": phoneCtrl.text.trim(),
         "username": userCtrl.text.trim(),
@@ -360,7 +362,7 @@ class _RegisterPageState extends State<RegisterPage> {
           if (msg.contains("Username") || msg.contains("username")) {
             serverUserError = "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว";
           } else if (msg.contains("หอพัก") || msg.contains("โค้ดหอพัก")) {
-            serverDormError = "โค้ดหอพักไม่ถูกต้อง";
+            serverDormError = msg;
             dormName = null;
           }
         });
@@ -448,6 +450,10 @@ class _RegisterPageState extends State<RegisterPage> {
                             "เบอร์โทร",
                             Icons.phone_android_outlined,
                             keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(10),
+                            ],
                           ),
                           const SizedBox(height: 10),
                           _field(
@@ -456,6 +462,10 @@ class _RegisterPageState extends State<RegisterPage> {
                             Icons.apartment_outlined,
                             sErr: serverDormError,
                             onChanged: _onDormCodeChanged,
+                            // บล็อกภาษาไทยในโค้ดหอพัก
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                            ],
                           ),
                           _buildDormStatus(),
                           const Padding(
@@ -468,6 +478,9 @@ class _RegisterPageState extends State<RegisterPage> {
                             "ชื่อผู้ใช้งาน",
                             Icons.alternate_email,
                             sErr: serverUserError,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')), // บล็อกภาษาไทย
+                            ],
                           ),
                           const SizedBox(height: 10),
                           _field(
@@ -477,6 +490,9 @@ class _RegisterPageState extends State<RegisterPage> {
                             isPass: true,
                             obs: obscure1,
                             toggle: () => setState(() => obscure1 = !obscure1),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')), // บล็อกภาษาไทย
+                            ],
                           ),
                           const SizedBox(height: 10),
                           _field(
@@ -486,6 +502,9 @@ class _RegisterPageState extends State<RegisterPage> {
                             isPass: true,
                             obs: obscure2,
                             toggle: () => setState(() => obscure2 = !obscure2),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')), // บล็อกภาษาไทย
+                            ],
                           ),
                           const SizedBox(height: 24),
                           SizedBox(
@@ -645,11 +664,13 @@ class _RegisterPageState extends State<RegisterPage> {
     TextInputType keyboardType = TextInputType.text,
     String? sErr,
     ValueChanged<String>? onChanged,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       controller: ctrl,
       obscureText: obs,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       onChanged: (v) {
         if (label == "โค้ดหอพัก") {
           onChanged?.call(v);
@@ -682,7 +703,7 @@ class _RegisterPageState extends State<RegisterPage> {
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
         helperText: (label == "รหัสผ่าน")
-            ? "8 ตัวขึ้นไป (ต้องมีตัวอักษรและตัวเลข)"
+            ? "8 ตัวขึ้นไป (ภาษาอังกฤษและตัวเลข)"
             : null,
         helperStyle: const TextStyle(fontSize: 9, color: cBrown),
         prefixIcon: Icon(icon, color: cBrown, size: 18),
@@ -721,11 +742,18 @@ class _RegisterPageState extends State<RegisterPage> {
         final val = v?.trim() ?? "";
         if (val.isEmpty) return "กรุณากรอก$label";
         if (label == "โค้ดหอพัก" && serverDormError != null) return serverDormError;
-        if (label == "Username" && val.length < 6) return "อย่างน้อย 6 ตัวอักษร";
+        
+        if (label == "ชื่อผู้ใช้งาน") {
+          if (val.length < 6) return "อย่างน้อย 6 ตัวอักษร";
+          if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(val)) return "ภาษาอังกฤษหรือตัวเลขเท่านั้น";
+        }
+        
+        if (label == "เบอร์โทร" && val.length < 10) return "กรุณากรอกเบอร์โทรให้ครบ 10 หลัก";
+
         if (label == "รหัสผ่าน") {
           if (val.length < 8) return "อย่างน้อย 8 ตัวอักษร";
-          if (!RegExp(r'^(?=.*[A-Za-z])(?=.*\d)').hasMatch(val)) {
-            return "ต้องมีตัวอักษรและตัวเลข";
+          if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(val)) {
+            return "ภาษาอังกฤษหรือตัวเลขเท่านั้น";
           }
         }
         if (label == "ยืนยันรหัสผ่าน" && val != passCtrl.text) return "รหัสผ่านไม่ตรงกัน";

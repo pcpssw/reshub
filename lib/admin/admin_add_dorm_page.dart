@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // เพิ่มบรรทัดนี้เข้ามา
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -183,7 +184,7 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
               _buildSectionCard(
                 title: "ข้อมูลหอพัก",
                 icon: Icons.apartment_rounded,
-                iconColor: cDark, // เปลี่ยนเป็นสีน้ำตาลแล้ว
+                iconColor: cDark,
                 children: [
                   const SizedBox(height: 8),
                   TextFormField(
@@ -197,6 +198,9 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
                     controller: dormCodeCtrl,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: cTextMain, letterSpacing: 1.5),
                     decoration: _dec("โค้ดหอพัก", Icons.qr_code_rounded),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                    ],
                     onChanged: (v) {
                       final val = _normalizeCode(v);
                       dormCodeCtrl.value = dormCodeCtrl.value.copyWith(
@@ -204,7 +208,11 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
                         selection: TextSelection.collapsed(offset: val.length),
                       );
                     },
-                    validator: (v) => (v == null || v.isEmpty) ? "กรุณากรอกโค้ดหอ" : null,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return "กรุณากรอกโค้ดหอ";
+                      if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(v)) return "โค้ดหอต้องเป็นภาษาอังกฤษและตัวเลขเท่านั้น";
+                      return null;
+                    },
                   ),
                 ],
               ),
@@ -230,14 +238,29 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
                     keyboardType: TextInputType.phone,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cTextMain),
                     decoration: _dec("เบอร์โทรศัพท์", Icons.phone_android_rounded),
-                    validator: (v) => (v == null || v.isEmpty) ? "กรุณากรอกเบอร์โทร" : null,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                    ],
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return "กรุณากรอกเบอร์โทร";
+                      if (v.length != 10) return "เบอร์โทรต้องมี 10 หลักเท่านั้น";
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: ownerUserCtrl,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cTextMain),
-                    decoration: _dec("Username", Icons.alternate_email_rounded),
-                    validator: (v) => (v == null || v.isEmpty) ? "กรุณากรอก username" : null,
+                    decoration: _dec("ชื่อผู้ใช้งาน", Icons.alternate_email_rounded),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                    ],
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return "กรุณากรอก username";
+                      if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(v)) return "Username ต้องเป็นภาษาอังกฤษและตัวเลขเท่านั้น";
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // สำหรับจำกัดรูปแบบการพิมพ์ (สำคัญ)
 import 'package:http/http.dart' as http;
 import 'config.dart';
 
@@ -11,7 +12,7 @@ class ForgotPasswordPage extends StatefulWidget {
 }
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
-  // 🎨 Palette - ปรับตามชุดสีที่คุณกำหนด
+  // 🎨 Palette
   static const Color cBg       = Color(0xFFF4EFE6);
   static const Color cTextMain = Color(0xFF2A1F17);
   static const Color cDark     = Color(0xFF523D2D);
@@ -64,6 +65,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       final res = await http.post(
         Uri.parse(AppConfig.url("auth_api.php")),
         body: {
+          "action": "forgot_password", 
           "username": usernameCtrl.text.trim(),
           "dorm_code": dormCodeCtrl.text.trim(),
           "phone": phoneCtrl.text.trim(),
@@ -81,7 +83,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         _snack(data["message"] ?? "เปลี่ยนรหัสไม่สำเร็จ");
       }
     } catch (e) {
-      _snack("เชื่อมต่อไม่ได้: $e");
+      _snack("เชื่อมต่อไม่ได้ หรือข้อมูลไม่ถูกต้อง");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -90,7 +92,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: cBg, // ใช้สีพื้นหลังหลัก
+      backgroundColor: cBg,
       body: SafeArea(
         child: Column(
           children: [
@@ -114,7 +116,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     width: 360,
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9), // ขาวนวลเพื่อให้เข้ากับพื้นหลังครีม
+                      color: Colors.white.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
@@ -133,7 +135,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             style: TextStyle(
                               fontSize: fTitle, 
                               fontWeight: FontWeight.w900, 
-                              color: cTextMain, // สีตัวอักษรเข้ม
+                              color: cTextMain,
                               letterSpacing: 0.5
                             )
                           ),
@@ -146,11 +148,27 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           const SizedBox(height: 24),
 
                           _sectionLabel("ตรวจสอบตัวตน"),
-                          _field(usernameCtrl, "ชื่อผู้ใช้งาน", Icons.person_outline),
+                          // ชื่อผู้ใช้งาน (อังกฤษ/เลข)
+                          _field(
+                            usernameCtrl, "ชื่อผู้ใช้งาน", Icons.person_outline,
+                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]'))],
+                          ),
                           const SizedBox(height: 12),
-                          _field(dormCodeCtrl, "โค้ดหอพัก", Icons.vpn_key_outlined),
+                          // โค้ดหอพัก (อังกฤษ/เลข)
+                          _field(
+                            dormCodeCtrl, "โค้ดหอพัก", Icons.vpn_key_outlined,
+                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]'))],
+                          ),
                           const SizedBox(height: 12),
-                          _field(phoneCtrl, "เบอร์โทรศัพท์", Icons.phone_android_outlined, keyboardType: TextInputType.phone),
+                          // เบอร์โทรศัพท์ (ตัวเลข 10 หลัก)
+                          _field(
+                            phoneCtrl, "เบอร์โทรศัพท์", Icons.phone_android_outlined, 
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(10),
+                            ],
+                          ),
                           
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 20),
@@ -158,18 +176,22 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           ),
                           
                           _sectionLabel("ตั้งรหัสผ่านใหม่"),
+                          // รหัสผ่านใหม่ (อังกฤษ/เลข)
                           _field(
                             newPassCtrl, "รหัสผ่านใหม่", Icons.lock_outline,
                             isPass: true,
                             obs: obscure1,
                             toggle: () => setState(() => obscure1 = !obscure1),
+                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]'))],
                           ),
                           const SizedBox(height: 12),
+                          // ยืนยันรหัสผ่านใหม่ (อังกฤษ/เลข)
                           _field(
                             confirmCtrl, "ยืนยันรหัสผ่านใหม่", Icons.lock_reset,
                             isPass: true,
                             obs: obscure2,
                             toggle: () => setState(() => obscure2 = !obscure2),
+                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]'))],
                           ),
 
                           const SizedBox(height: 30),
@@ -180,7 +202,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             child: ElevatedButton(
                               onPressed: _loading ? null : _submit,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: cDark, // ใช้สีน้ำตาลเข้ม
+                                backgroundColor: cDark,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 elevation: 0,
@@ -223,12 +245,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     TextEditingController ctrl, 
     String label, 
     IconData icon, 
-    {bool isPass = false, bool obs = false, VoidCallback? toggle, TextInputType keyboardType = TextInputType.text}
+    {bool isPass = false, bool obs = false, VoidCallback? toggle, TextInputType keyboardType = TextInputType.text, List<TextInputFormatter>? inputFormatters}
   ) {
     return TextFormField(
       controller: ctrl,
       obscureText: obs,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: const TextStyle(fontSize: fBody, color: cTextMain, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: label,
@@ -236,7 +259,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         prefixIcon: Icon(icon, color: cDark, size: 18),
         suffixIcon: isPass ? IconButton(icon: Icon(obs ? Icons.visibility_off : Icons.visibility, color: cDark, size: 18), onPressed: toggle) : null,
         filled: true,
-        fillColor: cBg.withOpacity(0.3), // สีช่องกรอกให้กลืนกับพื้นหลังนิดๆ
+        fillColor: cBg.withOpacity(0.3),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -257,9 +280,22 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         ),
       ),
       validator: (v) {
-        if (v == null || v.trim().isEmpty) return "กรุณากรอกข้อมูล";
-        if (label == "รหัสผ่านใหม่" && v.length < 6) return "อย่างน้อย 6 ตัว";
-        if (label == "ยืนยันรหัสผ่านใหม่" && v != newPassCtrl.text) return "รหัสไม่ตรงกัน";
+        final val = v?.trim() ?? "";
+        if (val.isEmpty) return "กรุณากรอกข้อมูล";
+        
+        if ((label == "ชื่อผู้ใช้งาน" || label == "โค้ดหอพัก") && !RegExp(r'^[a-zA-Z0-9]+$').hasMatch(val)) {
+          return "ต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น";
+        }
+
+        if (label == "รหัสผ่านใหม่") {
+          if (val.length < 6) return "อย่างน้อย 6 ตัว";
+          if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(val)) return "ต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น";
+        }
+        
+        if (label == "ยืนยันรหัสผ่านใหม่" && val != newPassCtrl.text) return "รหัสไม่ตรงกัน";
+        
+        if (label == "เบอร์โทรศัพท์" && val.length != 10) return "ต้องครบ 10 หลัก";
+        
         return null;
       },
     );

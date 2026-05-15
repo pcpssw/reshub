@@ -81,7 +81,6 @@ try {
     $action = trim((string)($data['action'] ?? ''));
 
     switch ($action) {
-        // ===== เดิมจาก dashboard_api.php =====
         case 'get_all_stats':
             $dorm_id = isset($data['dorm_id']) ? (int)$data['dorm_id'] : 0;
             $user_id = isset($data['user_id']) ? (int)$data['user_id'] : 0;
@@ -145,7 +144,6 @@ try {
             ]);
             break;
 
-        // ===== เดิมจาก dashboard_api.php =====
         case 'dashboard':
             $resDorms = $conn->query("SELECT COUNT(*) AS c FROM rh_dorms");
             $resUsers = $conn->query("SELECT COUNT(*) AS c FROM rh_users");
@@ -207,6 +205,18 @@ try {
             $ownerPass = password_hash((string)$data['owner_password'], PASSWORD_BCRYPT);
             $ownerFullName = trim((string)($data['owner_full_name'] ?? ''));
             $ownerPhone = trim((string)($data['owner_phone'] ?? ''));
+
+            // --------- เพิ่มโค้ดตรวจสอบ (Validation) Backend ---------
+            if (!preg_match('/^[a-zA-Z0-9]+$/', $dormCode)) {
+                j(['success' => false, 'message' => 'โค้ดหอพักต้องเป็นภาษาอังกฤษและตัวเลขเท่านั้น'], 400);
+            }
+            if (!preg_match('/^[a-zA-Z0-9]+$/', $ownerUser)) {
+                j(['success' => false, 'message' => 'Username ต้องเป็นภาษาอังกฤษและตัวเลขเท่านั้น'], 400);
+            }
+            if (!preg_match('/^[0-9]{10}$/', $ownerPhone)) {
+                j(['success' => false, 'message' => 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลักเท่านั้น'], 400);
+            }
+            // ---------------------------------------------------
 
             $conn->begin_transaction();
             try {

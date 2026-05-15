@@ -165,7 +165,8 @@ class _LoginPageState extends State<LoginPage> {
                   TextFormField(
                     controller: emailCtrl,
                     style: const TextStyle(fontSize: fBody, color: cTeddy),
-                    decoration: _buildInputStyle('ชื่อผู้ใช้งาน', Icons.person_outline_rounded),
+                    // ✨ ปรับข้อความให้รองรับเบอร์โทรศัพท์
+                    decoration: _buildInputStyle('ชื่อผู้ใช้งาน หรือ เบอร์โทร', Icons.person_outline_rounded),
                     validator: (v) => v!.isEmpty ? 'กรุณากรอกข้อมูล' : null,
                   ),
                   const SizedBox(height: 12),

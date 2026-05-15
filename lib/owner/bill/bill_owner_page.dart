@@ -115,6 +115,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
   bool _showBackToTop = false;
 
   int dormId = 0, userId = 0;
+  int currentBillingDay = 5; // ตัวแปรเก็บวันกำหนดชำระ
   bool loading = true;
   String selectedStatusKey = "all";
   String selectedBuilding = "ทั้งหมด";
@@ -195,6 +196,8 @@ class _BillAdminPageState extends State<BillAdminPage> {
 
       final data = jsonDecode(res.body);
       if (data["ok"] == true) {
+        currentBillingDay = int.tryParse(data["billing_day"]?.toString() ?? "5") ?? 5; // รับค่าวันครบกำหนด
+
         final List list = data["data"] ?? [];
         final fetched = list.map((e) => BillItem.fromJson(Map<String, dynamic>.from(e))).toList();
         final bSet = {"ทั้งหมด"}, fSet = {"ทั้งหมด"};
@@ -309,6 +312,167 @@ class _BillAdminPageState extends State<BillAdminPage> {
     } catch (e) { if (mounted) setState(() => loading = false); }
   }
 
+Future<void> _showDueDateDialog() async {
+    int tempDay = currentBillingDay;
+    final res = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // บังคับให้ต้องกดปุ่ม ยกเลิก/บันทึก เท่านั้น
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ไอคอนด้านบนสุด
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.edit_calendar_rounded, color: Colors.orange, size: 40),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "กำหนดวันจ่ายบิล",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cTextMain),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "เลือกว่าจะให้บิลของทุกเดือน\nครบกำหนดชำระภายในวันที่เท่าไหร่",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // กล่อง Dropdown ที่ดีไซน์เข้ากับธีมแอป
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: cAccent.withOpacity(0.5)),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: tempDay,
+                        isExpanded: true,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: cIcon),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: cTextMain,
+                        ),
+                        items: List.generate(31, (i) {
+                          return DropdownMenuItem(
+                            value: i + 1,
+                            child: Text("วันที่ ${i + 1} ของทุกเดือน"),
+                          );
+                        }),
+                        onChanged: (v) => setDialogState(() => tempDay = v!),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // กล่องคำเตือนเพื่อให้ Admin เข้าใจระบบ
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red.shade100),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 16, color: Colors.red.shade400),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "หากเลยวันที่กำหนด ระบบจะเปลี่ยนสถานะบิลเป็น 'เลยกำหนด' อัตโนมัติ",
+                            style: TextStyle(fontSize: 11, color: Colors.red.shade700, height: 1.3, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ปุ่มกดยืนยัน/ยกเลิก (แบ่งครึ่งซ้ายขวา)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: cIcon,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            "บันทึก",
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: cAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text(
+                            "ยกเลิก",
+                            style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      )
+    );
+
+    if (res == true && tempDay != currentBillingDay) {
+      setState(() => loading = true);
+      try {
+        final response = await http.post(
+          Uri.parse(AppConfig.url("bills_api.php")),
+          body: {
+            "action": "update_due_date",
+            "dorm_id": dormId.toString(),
+            "due_date_day": tempDay.toString(),
+          }
+        ).timeout(const Duration(seconds: 15));
+        
+        final d = jsonDecode(response.body);
+        if (d["ok"] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(d["message"] ?? "ตั้งค่าเรียบร้อย", style: const TextStyle(fontWeight: FontWeight.bold))));
+          await fetchBills(); 
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("เกิดข้อผิดพลาด: ${d['message']}")));
+          setState(() => loading = false);
+        }
+      } catch (e) {
+        setState(() => loading = false);
+      }
+    }
+  }
   Widget _buildModernBillCard(BillItem it) {
     bool isDataMissing = it.waterUnit == 0 || it.elecUnit == 0;
     Color sColor = Color(int.parse(it.statusColor.replaceFirst('#', '0xFF')));
@@ -396,7 +560,10 @@ class _BillAdminPageState extends State<BillAdminPage> {
       appBar: AppBar(
         toolbarHeight: 50, elevation: 0.5, backgroundColor: Colors.white, centerTitle: true, automaticallyImplyLeading: false,
         title: const Text("จัดการบิล", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader)),
-        actions: [IconButton(icon: const Icon(Icons.send_rounded, color: cIcon, size: 22), onPressed: bulkSendBills)],
+        actions: [
+          IconButton(icon: const Icon(Icons.edit_calendar_rounded, color: cIcon, size: 22), onPressed: _showDueDateDialog, tooltip: "ตั้งค่าวันกำหนดชำระ"),
+          IconButton(icon: const Icon(Icons.send_rounded, color: cIcon, size: 22), onPressed: bulkSendBills, tooltip: "ส่งบิลทีละหลายห้อง")
+        ],
       ),
       floatingActionButton: _showBackToTop
           ? Padding(
@@ -469,14 +636,38 @@ class _BillAdminPageState extends State<BillAdminPage> {
   Widget _buildStatusScroll() {
     return Container(
       width: double.infinity, color: Colors.white, padding: const EdgeInsets.only(bottom: 12, top: 2),
-      child: Center(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [_statusChip("all", "ทั้งหมด"), _statusChip("paid", "ชำระแล้ว"), _statusChip("unpaid", "ค้างชำระ")])))),
+      child: Center(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [
+        _statusChip("all", "ทั้งหมด"), 
+        _statusChip("paid", "ชำระแล้ว"), 
+        _statusChip("unpaid", "ค้างชำระ"),
+        _statusChip("overdue", "เลยกำหนด"),
+      ])))),
     );
   }
 
   Widget _statusChip(String key, String label) {
     final bool sel = selectedStatusKey == key;
-    final Color color = (key == "paid") ? const Color(0xFF6DAE74) : (key == "unpaid") ? const Color(0xFFE57C7C) : const Color(0xFF6B4E3D);
-    final Color bg = (key == "paid") ? const Color(0xFFF6FBF7) : (key == "unpaid") ? const Color(0xFFFFF6F6) : const Color(0xFFF3ECE7);
+    Color color;
+    Color bg;
+    
+    switch(key) {
+      case "paid":
+        color = const Color(0xFF6DAE74);
+        bg = const Color(0xFFF6FBF7);
+        break;
+      case "unpaid":
+        color = const Color(0xFFE57C7C);
+        bg = const Color(0xFFFFF6F6);
+        break;
+      case "overdue":
+        color = const Color(0xFFD32F2F);
+        bg = const Color(0xFFFFEBEE);
+        break;
+      default: // all
+        color = const Color(0xFF6B4E3D);
+        bg = const Color(0xFFF3ECE7);
+    }
+    
     return GestureDetector(
       onTap: () { if (selectedStatusKey != key) { setState(() => selectedStatusKey = key); fetchBills(); } },
       child: AnimatedContainer(duration: const Duration(milliseconds: 200), margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4), padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), decoration: BoxDecoration(color: sel ? color : bg, borderRadius: BorderRadius.circular(20), border: Border.all(color: sel ? color : color.withValues(alpha: 0.45), width: 1.15)), child: Row(mainAxisSize: MainAxisSize.min, children: [if (sel) ...[const Icon(Icons.check_circle, size: 15, color: Colors.white), const SizedBox(width: 6)], Text(label, style: TextStyle(color: sel ? Colors.white : color, fontWeight: FontWeight.bold, fontSize: fDetail))])),

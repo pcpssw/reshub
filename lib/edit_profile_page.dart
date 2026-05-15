@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // สำหรับการจำกัด Format การพิมพ์
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
@@ -176,15 +177,30 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 title: "ข้อมูลส่วนตัว",
                 icon: Icons.person_outline_rounded,
                 children: [
-                  _buildInput(usernameCtrl, "Username", Icons.alternate_email, 
-                    (v) => (v == null || v.isEmpty) ? "กรุณากรอก Username" : null),
+                  _buildInput(
+                    usernameCtrl, "Username", Icons.alternate_email, 
+                    (v) => (v == null || v.isEmpty) ? "กรุณากรอก Username" : null,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                    ],
+                  ),
+                  
                   _buildInput(fullNameCtrl, "ชื่อ-นามสกุล", Icons.badge_outlined, 
                     (v) => (v == null || v.isEmpty) ? "กรุณากรอกชื่อ-นามสกุล" : null),
-                  _buildInput(phoneCtrl, "เบอร์โทรศัพท์", Icons.phone_android_rounded, (v) {
-                    if (v == null || v.isEmpty) return "กรุณากรอกเบอร์โทรศัพท์";
-                    if (v.length < 10) return "เบอร์โทรศัพท์ต้องมี 10 หลัก";
-                    return null;
-                  }, keyboard: TextInputType.phone),
+                  
+                  _buildInput(
+                    phoneCtrl, "เบอร์โทรศัพท์", Icons.phone_android_rounded, 
+                    (v) {
+                      if (v == null || v.isEmpty) return "กรุณากรอกเบอร์โทรศัพท์";
+                      if (v.length < 10) return "เบอร์โทรศัพท์ต้องมี 10 หลัก";
+                      return null;
+                    }, 
+                    keyboard: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                    ],
+                  ),
                   const SizedBox(height: 10),
                   _buildBtn("อัปเดตข้อมูล", _isSaving, _saveProfile),
                 ],
@@ -197,23 +213,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 title: "เปลี่ยนรหัสผ่าน",
                 icon: Icons.shield_outlined,
                 children: [
-                  _buildPasswordInput(oldPassCtrl, "รหัสผ่านเดิม", _obOld, 
+                  _buildPasswordInput(
+                    oldPassCtrl, "รหัสผ่านเดิม", _obOld, 
                     () => setState(() => _obOld = !_obOld), 
-                    (v) => (v == null || v.isEmpty) ? "กรุณากรอกรหัสผ่านเดิม" : null),
-                  _buildPasswordInput(newPassCtrl, "รหัสผ่านใหม่", _obNew, 
-                    () => setState(() => _obNew = !_obNew), (v) {
-                    if (v == null || v.isEmpty) return "กรุณากรอกรหัสผ่านใหม่";
-                    if (v.length < 8) return "รหัสต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
-                    if (!RegExp(r'^(?=.*?[A-Z])').hasMatch(v)) return "ต้องมีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว";
-                    if (!RegExp(r'^(?=.*?[a-z])').hasMatch(v)) return "ต้องมีตัวพิมพ์เล็ก (a-z) อย่างน้อย 1 ตัว";
-                    if (!RegExp(r'^(?=.*?[0-9])').hasMatch(v)) return "ต้องมีตัวเลข (0-9) อย่างน้อย 1 ตัว";
-                    return null;
-                  }),
-                  _buildPasswordInput(confirmPassCtrl, "ยืนยันรหัสผ่านใหม่", _obConfirm, 
-                    () => setState(() => _obConfirm = !_obConfirm), (v) {
-                    if (v != newPassCtrl.text) return "รหัสผ่านไม่ตรงกัน";
-                    return null;
-                  }),
+                    (v) => (v == null || v.isEmpty) ? "กรุณากรอกรหัสผ่านเดิม" : null
+                  ),
+                  _buildPasswordInput(
+                    newPassCtrl, "รหัสผ่านใหม่", _obNew, 
+                    () => setState(() => _obNew = !_obNew), 
+                    (v) {
+                      if (v == null || v.isEmpty) return "กรุณากรอกรหัสผ่านใหม่";
+                      if (v.length < 8) return "รหัสต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
+                      if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(v)) return "อังกฤษหรือตัวเลขเท่านั้น";
+                      return null;
+                    }
+                  ),
+                  _buildPasswordInput(
+                    confirmPassCtrl, "ยืนยันรหัสผ่านใหม่", _obConfirm, 
+                    () => setState(() => _obConfirm = !_obConfirm), 
+                    (v) {
+                      if (v != newPassCtrl.text) return "รหัสผ่านไม่ตรงกัน";
+                      return null;
+                    }
+                  ),
                   const SizedBox(height: 10),
                   _buildBtn("เปลี่ยนรหัสผ่าน", _isChangingPass, _changePassword),
                 ],
@@ -252,26 +274,44 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Widget _buildInput(TextEditingController c, String label, IconData icon, String? Function(String?)? validator, {TextInputType keyboard = TextInputType.text}) {
+  Widget _buildInput(
+    TextEditingController c, 
+    String label, 
+    IconData icon, 
+    String? Function(String?)? validator, {
+    TextInputType keyboard = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters, 
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: c,
         validator: validator, 
         keyboardType: keyboard,
+        inputFormatters: inputFormatters,
         style: const TextStyle(fontSize: 14, color: cTextMain, fontWeight: FontWeight.w600),
         decoration: _inputDec(label, icon),
       ),
     );
   }
 
-  Widget _buildPasswordInput(TextEditingController c, String label, bool ob, VoidCallback toggle, String? Function(String?)? validator) {
+  Widget _buildPasswordInput(
+    TextEditingController c, 
+    String label, 
+    bool ob, 
+    VoidCallback toggle, 
+    String? Function(String?)? validator
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: c,
         obscureText: ob,
         validator: validator,
+        // เพิ่ม inputFormatters เพื่อบล็อกภาษาไทยในช่องรหัสผ่าน
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+        ],
         style: const TextStyle(fontSize: 14, color: cTextMain, fontWeight: FontWeight.w600),
         decoration: _inputDec(label, Icons.lock_outline_rounded).copyWith(
           suffixIcon: IconButton(

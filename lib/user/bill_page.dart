@@ -20,7 +20,6 @@ class BillPage extends StatefulWidget {
 }
 
 class _BillPageState extends State<BillPage> {
-  // แก้ไข: ลบ fTitle ออกเนื่องจากไม่ได้ใช้งาน
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
@@ -37,6 +36,7 @@ class _BillPageState extends State<BillPage> {
   bool _submitting = false;
   bool _pickingSlip = false;
   bool _noBill = false;
+  bool _hasShownOverduePopup = false; // ป้องกันไม่ให้เด้งซ้ำรัวๆ
 
   String get apiUrl => AppConfig.url("bills_api.php");
 
@@ -137,6 +137,15 @@ class _BillPageState extends State<BillPage> {
               [];
           _noBill = false;
         });
+
+        // 🚨 เด้ง Popup แจ้งเตือนเมื่อสถานะคือ overdue
+        if (status.toLowerCase() == "overdue" && !_hasShownOverduePopup) {
+          _hasShownOverduePopup = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showOverdueAlert();
+          });
+        }
+
       } else {
         setState(() => _noBill = true);
       }
@@ -154,6 +163,7 @@ class _BillPageState extends State<BillPage> {
     final v = s.toLowerCase().trim();
     if (v == "verified" || v == "paid" || v == "done") return "ชำระแล้ว";
     if (v == "pending") return "รอตรวจสอบ";
+    if (v == "overdue") return "เลยกำหนดชำระ";
     return "ยังไม่ชำระ";
   }
 
@@ -161,11 +171,59 @@ class _BillPageState extends State<BillPage> {
     final v = s.toLowerCase().trim();
     if (v == "verified" || v == "paid" || v == "done") return Colors.green;
     if (v == "pending") return Colors.orange;
+    if (v == "overdue") return Colors.red.shade700;
     return Colors.redAccent;
   }
 
   String _thaiMonthText() =>
       "${_thaiMonthFmt.format(DateTime(year, month, 1))} ${year + 543}";
+
+  // 🚨 Popup แจ้งเตือนค้างชำระ
+  void _showOverdueAlert() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
+                child: const Icon(Icons.warning_rounded, color: Colors.redAccent, size: 45),
+              ),
+              const SizedBox(height: 20),
+              const Text("แจ้งเตือนค้างชำระ!", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.redAccent)),
+              const SizedBox(height: 12),
+              Text(
+                "บิลประจำเดือน ${_thaiMonthFmt.format(DateTime(year, month, 1))} ของคุณ\nเลยกำหนดชำระแล้ว กรุณาชำระเงิน\nยอด ${_moneyFmt.format(total)} บาท โดยด่วน",
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: _textColor, height: 1.5, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  child: const Text("รับทราบ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -249,15 +307,20 @@ class _BillPageState extends State<BillPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _lineColor),
+        // 🚨 เปลี่ยนกรอบเป็นสีแดงถ้าเลยกำหนดชำระ
+        border: Border.all(
+          color: status.toLowerCase() == 'overdue' ? Colors.redAccent.withValues(alpha: 0.5) : _lineColor, 
+          width: status.toLowerCase() == 'overdue' ? 2 : 1
+        ),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            decoration: const BoxDecoration(
-              color: _textColor,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            decoration: BoxDecoration(
+              // 🚨 เปลี่ยนหัวการ์ดเป็นสีแดงถ้าเลยกำหนด
+              color: status.toLowerCase() == 'overdue' ? Colors.red.shade800 : _textColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(21)),
             ),
             child: Row(
               children: [
@@ -336,7 +399,6 @@ class _BillPageState extends State<BillPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                     color: _bgColor.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: _lineColor),
@@ -411,7 +473,6 @@ class _BillPageState extends State<BillPage> {
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                                 color: Colors.grey.withValues(alpha: 0.8),
                                 shape: BoxShape.circle,
                               ),
@@ -432,7 +493,6 @@ class _BillPageState extends State<BillPage> {
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                                 color: Colors.grey.withValues(alpha: 0.8),
                                 shape: BoxShape.circle,
                               ),
@@ -457,7 +517,6 @@ class _BillPageState extends State<BillPage> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: _lineColor),
-                        // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                         color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.18),
                       ),
                       child: Column(
@@ -558,7 +617,6 @@ class _BillPageState extends State<BillPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        // แก้ไข: เปลี่ยน withOpacity เป็น withValues
         border: Border.all(color: _lineColor.withValues(alpha: 0.5)),
       ),
       child: Row(
@@ -578,6 +636,7 @@ class _BillPageState extends State<BillPage> {
                 } else {
                   month--;
                 }
+                _hasShownOverduePopup = false; // เคลียร์สถานะเผื่อเลื่อนไปมา
               });
               _loadBill();
             },
@@ -604,6 +663,7 @@ class _BillPageState extends State<BillPage> {
                 } else {
                   month++;
                 }
+                _hasShownOverduePopup = false;
               });
               _loadBill();
             },
@@ -623,7 +683,6 @@ class _BillPageState extends State<BillPage> {
           Icon(
             Icons.receipt_long_rounded,
             size: 80,
-            // แก้ไข: เปลี่ยน withOpacity เป็น withValues
             color: _mutedColor.withValues(alpha: 0.1),
           ),
           const SizedBox(height: 24),
@@ -632,7 +691,6 @@ class _BillPageState extends State<BillPage> {
             style: TextStyle(
               fontSize: fHeader,
               fontWeight: FontWeight.bold,
-              // แก้ไข: เปลี่ยน withOpacity เป็น withValues
               color: _textColor.withValues(alpha: 0.8),
             ),
           ),
@@ -1012,7 +1070,6 @@ class BankDetailPage extends StatelessWidget {
                     Icon(
                       Icons.account_balance_wallet_outlined,
                       size: 80,
-                      // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                       color: textColor.withValues(alpha: 0.1),
                     ),
                     const SizedBox(height: 20),
@@ -1046,7 +1103,6 @@ class BankDetailPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                           color: bankColor.withValues(alpha: 0.1),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
@@ -1061,7 +1117,6 @@ class BankDetailPage extends StatelessWidget {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                             color: bankColor.withValues(alpha: 0.06),
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(24),
@@ -1105,7 +1160,6 @@ class BankDetailPage extends StatelessWidget {
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    // แก้ไข: เปลี่ยน withOpacity เป็น withValues
                                     color: bankColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
