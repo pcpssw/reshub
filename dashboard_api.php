@@ -197,6 +197,47 @@ try {
             j(['success' => true, 'data' => $stmt->get_result()->fetch_all(MYSQLI_ASSOC)]);
             break;
 
+        // 🌟 เคสดึงข้อมูลผู้เช่า/แอดมินแยกหอพักแบบเชื่อมตารางจริงจากฐานข้อมูล
+        case 'getDormUsers':
+            requireFields($data, ['dorm_id', 'role_type']);
+            $dorm_id = (int)$data['dorm_id'];
+            $role_type = trim((string)$data['role_type']);
+
+            if ($role_type === 'tenant') {
+                $sql = "SELECT u.full_name, u.phone, 
+                               COALESCE(m.move_in_date, m.created_at) AS start_date,
+                               r.room_number, b.building_name
+                        FROM rh_dorm_memberships m
+                        JOIN rh_users u ON m.user_id = u.user_id
+                        LEFT JOIN rh_rooms r ON m.room_id = r.room_id
+                        LEFT JOIN rh_buildings b ON r.building_id = b.building_id
+                        WHERE m.dorm_id = ? AND m.role_code = 't' AND m.approve_status = 'approved'
+                        ORDER BY r.room_number ASC, m.membership_id DESC";
+            } else if ($role_type === 'admin') {
+                $sql = "SELECT u.full_name, u.phone, m.created_at AS start_date,
+                               '' AS room_number, '' AS building_name
+                        FROM rh_dorm_memberships m
+                        JOIN rh_users u ON m.user_id = u.user_id
+                        WHERE m.dorm_id = ? AND m.role_code = 'o' AND m.approve_status = 'approved'
+                        ORDER BY m.membership_id DESC";
+            } else {
+                $sql = "SELECT u.full_name, u.phone, m.created_at AS start_date,
+                               '' AS room_number, '' AS building_name
+                        FROM rh_dorm_memberships m
+                        JOIN rh_users u ON m.user_id = u.user_id
+                        WHERE m.dorm_id = ? AND m.approve_status = 'pending'
+                        ORDER BY m.membership_id DESC";
+            }
+
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param('i', $dorm_id);
+            $stmt->execute();
+            $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            j(['success' => true, 'data' => $result]);
+            break;
+
         case 'createDorm':
             requireFields($data, ['dorm_name', 'dorm_code', 'owner_username', 'owner_password']);
             $dormName = trim((string)$data['dorm_name']);
@@ -206,7 +247,6 @@ try {
             $ownerFullName = trim((string)($data['owner_full_name'] ?? ''));
             $ownerPhone = trim((string)($data['owner_phone'] ?? ''));
 
-            // --------- เพิ่มโค้ดตรวจสอบ (Validation) Backend ---------
             if (!preg_match('/^[a-zA-Z0-9]+$/', $dormCode)) {
                 j(['success' => false, 'message' => 'โค้ดหอพักต้องเป็นภาษาอังกฤษและตัวเลขเท่านั้น'], 400);
             }
@@ -216,7 +256,6 @@ try {
             if (!preg_match('/^[0-9]{10}$/', $ownerPhone)) {
                 j(['success' => false, 'message' => 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลักเท่านั้น'], 400);
             }
-            // ---------------------------------------------------
 
             $conn->begin_transaction();
             try {
@@ -271,6 +310,34 @@ try {
             $stmt->bind_param('si', $status, $did);
             $stmt->execute();
             j(['success' => true, 'message' => 'อัปเดตสถานะสำเร็จ']);
+            break;
+
+        case 'deleteUser':
+            requireFields($data, ['user_id']);
+            $target_user_id = (int)$data['user_id'];
+
+            $stmt = $conn->prepare("SELECT user_level FROM rh_users WHERE user_id = ?");
+            $stmt->bind_param('i', $target_user_id);
+            $stmt->execute();
+            $res = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if (!$res) {
+                j(['success' => false, 'message' => 'ไม่พบข้อมูลผู้ใช้งานนี้ในระบบ'], 44);
+            }
+
+            $user_level = $res['user_level'] ?? '';
+
+            if ($user_level === 'a' || $user_level === 'o') {
+                j(['success' => false, 'message' => 'ระบบไม่อนุญาตให้ลบบัญชีผู้ดูแลระบบ หรือเจ้าของหอพักออกจากระบบได้ ❌'], 403);
+            }
+
+            $stmtDel = $conn->prepare("DELETE FROM rh_users WHERE user_id = ?");
+            $stmtDel->bind_param('i', $target_user_id);
+            if ($stmtDel->execute()) {
+                j(['success' => true, 'message' => 'ลบผู้ใช้งานทั่วไปเรียบร้อยแล้ว']);
+            }
+            j(['success' => false, 'message' => 'ไม่สามารถลบผู้ใช้งานได้'], 500);
             break;
 
         case 'bank_list':

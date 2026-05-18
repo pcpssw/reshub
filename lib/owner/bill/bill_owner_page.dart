@@ -109,13 +109,14 @@ class _BillAdminPageState extends State<BillAdminPage> {
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
+  static const double fStaticLabel = 13.0;
   static const double fCaption = 11.0;
 
   final ScrollController _scrollController = ScrollController();
   bool _showBackToTop = false;
 
   int dormId = 0, userId = 0;
-  int currentBillingDay = 5; // ตัวแปรเก็บวันกำหนดชำระ
+  int currentBillingDay = 5; 
   bool loading = true;
   String selectedStatusKey = "all";
   String selectedBuilding = "ทั้งหมด";
@@ -129,7 +130,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
   final List<Map<String, dynamic>> monthOptions = const [
     {"value": 1, "label": "ม.ค."}, {"value": 2, "label": "ก.พ."},
     {"value": 3, "label": "มี.ค."}, {"value": 4, "label": "เม.ย."},
-    {"value": 5, "label": "พ.ค."}, {"value": 6, "label": "มิ.ย."},
+    {"value": 5, "label": "พ.ค."}, {"value": 6, "label": "มี.ย."},
     {"value": 7, "label": "ก.ค."}, {"value": 8, "label": "ส.ค."},
     {"value": 9, "label": "ก.ย."}, {"value": 10, "label": "ต.ค."},
     {"value": 11, "label": "พ.ย."}, {"value": 12, "label": "ธ.ค."},
@@ -179,9 +180,27 @@ class _BillAdminPageState extends State<BillAdminPage> {
     await fetchBills();
   }
 
+  Future<void> triggerOverdueCheck() async {
+    if (userId <= 0) return;
+    try {
+      await http.post(
+        Uri.parse(AppConfig.url("bills_api.php")),
+        body: {
+          "action": "check_overdue",
+          "user_id": userId.toString(),
+        },
+      ).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint("Trigger Overdue Error: $e");
+    }
+  }
+
   Future<void> fetchBills() async {
     if (!mounted) return;
     setState(() => loading = true);
+
+    await triggerOverdueCheck();
+
     try {
       final res = await http.post(
         Uri.parse(AppConfig.url("bills_api.php")),
@@ -196,7 +215,7 @@ class _BillAdminPageState extends State<BillAdminPage> {
 
       final data = jsonDecode(res.body);
       if (data["ok"] == true) {
-        currentBillingDay = int.tryParse(data["billing_day"]?.toString() ?? "5") ?? 5; // รับค่าวันครบกำหนด
+        currentBillingDay = int.tryParse(data["billing_day"]?.toString() ?? "5") ?? 5;
 
         final List list = data["data"] ?? [];
         final fetched = list.map((e) => BillItem.fromJson(Map<String, dynamic>.from(e))).toList();
@@ -312,11 +331,11 @@ class _BillAdminPageState extends State<BillAdminPage> {
     } catch (e) { if (mounted) setState(() => loading = false); }
   }
 
-Future<void> _showDueDateDialog() async {
+  Future<void> _showDueDateDialog() async {
     int tempDay = currentBillingDay;
     final res = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // บังคับให้ต้องกดปุ่ม ยกเลิก/บันทึก เท่านั้น
+      barrierDismissible: false, 
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           return Dialog(
@@ -327,7 +346,6 @@ Future<void> _showDueDateDialog() async {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ไอคอนด้านบนสุด
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -349,7 +367,6 @@ Future<void> _showDueDateDialog() async {
                   ),
                   const SizedBox(height: 20),
                   
-                  // กล่อง Dropdown ที่ดีไซน์เข้ากับธีมแอป
                   Container(
                     decoration: BoxDecoration(
                       color: cBg,
@@ -381,7 +398,6 @@ Future<void> _showDueDateDialog() async {
                   ),
                   const SizedBox(height: 16),
 
-                  // กล่องคำเตือนเพื่อให้ Admin เข้าใจระบบ
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -405,7 +421,6 @@ Future<void> _showDueDateDialog() async {
                   ),
                   const SizedBox(height: 24),
 
-                  // ปุ่มกดยืนยัน/ยกเลิก (แบ่งครึ่งซ้ายขวา)
                   Row(
                     children: [
                       Expanded(
@@ -473,17 +488,31 @@ Future<void> _showDueDateDialog() async {
       }
     }
   }
+
   Widget _buildModernBillCard(BillItem it) {
     bool isDataMissing = it.waterUnit == 0 || it.elecUnit == 0;
-    Color sColor = Color(int.parse(it.statusColor.replaceFirst('#', '0xFF')));
+    
+    // ✨ เช็กแท้จริงว่าแอดมินส่งบิลในเดือนนี้หรือยัง: เช็กว่ามี ID บิลอยู่ในระบบจริงไหม
     bool isSent = it.paymentId != null && it.paymentId! > 0;
+
+    Color sColor;
+    String displayStatusLabel = "";
+
+    if (!isSent) {
+      sColor = const Color(0xFFF57C00); // สีส้มอบอุ่นของธีมหอพักตอนยังไม่ส่งบิล
+    } else {
+      displayStatusLabel = it.statusLabel;
+      sColor = it.statusKey == "overdue"
+          ? const Color(0xFFD32F2F) 
+          : Color(int.parse(it.statusColor.replaceFirst('#', '0xFF')));
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white, borderRadius: BorderRadius.circular(15),
-        border: isDataMissing 
-            ? Border.all(color: Colors.red.shade400, width: 1.5) 
+        border: isDataMissing
+            ? Border.all(color: Colors.red.shade400, width: 1.5)
             : Border.all(color: Colors.transparent, width: 1.5),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
@@ -500,8 +529,8 @@ Future<void> _showDueDateDialog() async {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10), 
-                    decoration: BoxDecoration(color: sColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), 
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: sColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
                     child: Icon(Icons.meeting_room_rounded, color: sColor, size: 24)
                   ),
                   const SizedBox(width: 15),
@@ -520,7 +549,18 @@ Future<void> _showDueDateDialog() async {
                     children: [
                       Text("${it.calculatedTotal.toStringAsFixed(0)} ฿", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: fBody, color: cTextMain)),
                       const SizedBox(height: 4),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: sColor.withValues(alpha: 0.2))), child: Text(it.statusLabel, style: TextStyle(color: sColor, fontSize: fCaption, fontWeight: FontWeight.bold))),
+                      // 🌟 [จุดแก้ไขตัวที่ 1] 
+                      // ถ้ายังไม่ได้กดส่งบิล (isSent == false) ป้ายสี่เหลี่ยมเล็กใต้ราคานี้จะถูกซ่อนทันที ไม่แสดงขึ้นมาเด็ดขาดครับ
+                      if (isSent && displayStatusLabel.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: sColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: sColor.withValues(alpha: 0.2))
+                          ), 
+                          child: Text(displayStatusLabel, style: TextStyle(color: sColor, fontSize: fCaption, fontWeight: FontWeight.bold))
+                        ),
                     ],
                   ),
                 ],
@@ -528,9 +568,12 @@ Future<void> _showDueDateDialog() async {
               const Divider(height: 20, thickness: 0.5),
               Row(
                 children: [
+                  // 🌟 [จุดแก้ไขตัวที่ 2] 
+                  // แสดงแค่ป้ายบอกชัด ๆ "ยังไม่ส่งบิล" (สีส้ม) หรือ "ส่งบิลแล้ว" (สีน้ำเงิน) เท่านั้น
+                  // ป้าย/ปุ่มสเตตัสเสริมอื่น ๆ (เช่น รอตรวจสอบ, ส่งบิลแล้ว) จะถูกสั่งให้เปิดใช้เฉพาะจังหวะที่กดส่งบิลจริง ๆ เท่านั้นครับ
                   _badge(isSent ? "ส่งบิลแล้ว" : "ยังไม่ส่งบิล", isSent ? const Color(0xFF1976D2) : const Color(0xFFF57C00), isSent ? Icons.send : Icons.hourglass_empty),
-                  if (isDataMissing) ...[const SizedBox(width: 8), _badge("รอจดมิเตอร์", Colors.red.shade700, Icons.edit_note_rounded)],
-                  if (it.slipImage != null && it.slipImage!.isNotEmpty) ...[const SizedBox(width: 8), _badge("แจ้งชำระแล้ว", const Color(0xFF388E3C), Icons.check_circle_outline)],
+                  if (isSent && isDataMissing) ...[const SizedBox(width: 8), _badge("รอจดมิเตอร์", Colors.red.shade700, Icons.edit_note_rounded)],
+                  if (isSent && it.slipImage != null && it.slipImage!.isNotEmpty) ...[const SizedBox(width: 8), _badge("แจ้งชำระแล้ว", const Color(0xFF388E3C), Icons.check_circle_outline)],
                   const Spacer(),
                   const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
                 ],
@@ -547,8 +590,14 @@ Future<void> _showDueDateDialog() async {
     final filteredItems = items.where((it) {
       bool bOk = selectedBuilding == "ทั้งหมด" || it.building == selectedBuilding;
       bool fOk = selectedFloor == "ทั้งหมด" || it.floor.toString() == selectedFloor;
+      
+      bool statusOk = true;
+      if (selectedStatusKey != "all") {
+        statusOk = (it.statusKey == selectedStatusKey);
+      }
+
       bool hasActiveTenant = it.statusKey != "no_tenant";
-      return bOk && fOk && hasActiveTenant;
+      return bOk && fOk && statusOk && hasActiveTenant;
     }).toList();
 
     Map<String, List<BillItem>> groupedByBuilding = {};
@@ -597,7 +646,7 @@ Future<void> _showDueDateDialog() async {
                       const SizedBox(width: 8),
                       Expanded(child: Divider(thickness: 1, color: cTextMain.withValues(alpha: 0.1))),
                       const SizedBox(width: 8),
-                      Text("${groupedByBuilding[bName]!.length} ห้อง", style: const TextStyle(fontSize: fCaption, color: Colors.black54, fontWeight: FontWeight.bold)),
+                      Text("${groupedByBuilding[bName]!.length} ห้อง", style: const TextStyle(fontSize: fStaticLabel, color: Colors.black54, fontWeight: FontWeight.bold)),
                     ]),
                   ),
                 ),
@@ -630,7 +679,7 @@ Future<void> _showDueDateDialog() async {
   }
 
   Widget _dropClassic<T>({required String label, required T val, required List<DropdownMenuItem<T>> items, required ValueChanged<T?> on}) {
-    return Expanded(child: SizedBox(height: 50, child: DropdownButtonFormField<T>(isExpanded: true, value: val, items: items, onChanged: on, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold, color: cTextMain), decoration: InputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true, labelText: label, labelStyle: const TextStyle(color: cIcon, fontSize: fDetail, fontWeight: FontWeight.bold), filled: true, fillColor: cBg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))));
+    return Expanded(child: SizedBox(height: 50, child: DropdownButtonFormField<T>(isExpanded: true, value: val, items: items, onChanged: on, style: const TextStyle(fontSize: fBody, fontWeight: FontWeight.bold, color: cTextMain), decoration: InputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true, labelText: label, labelStyle: const TextStyle(color: cIcon, fontSize: fStaticLabel, fontWeight: FontWeight.bold), filled: true, fillColor: cBg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))));
   }
 
   Widget _buildStatusScroll() {

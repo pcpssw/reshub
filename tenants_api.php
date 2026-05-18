@@ -124,8 +124,8 @@ function fetch_pending_rooms_bundle($conn, $T_MEM, $T_USERS, $T_ROOMS, $T_BLD, $
             r.room_number,
             COALESCE(b.building_name, '') AS building,
             r.floor,
-            r.tenant_id,  -- แก้ไขจุดที่ 1: เพิ่ม tenant_id
-            r.status      -- แก้ไขจุดที่ 1: เพิ่ม status
+            r.tenant_id,
+            r.status
         FROM {$T_ROOMS} r
         LEFT JOIN {$T_BLD} b ON b.building_id = r.building_id
         WHERE r.dorm_id = ?
@@ -139,7 +139,7 @@ function fetch_pending_rooms_bundle($conn, $T_MEM, $T_USERS, $T_ROOMS, $T_BLD, $
     while ($row = $rs2->fetch_assoc()) {
         $row["room_id"] = (int)$row["room_id"];
         $row["floor"] = isset($row["floor"]) && $row["floor"] !== null ? (int)$row["floor"] : 0;
-        $row["tenant_id"] = isset($row["tenant_id"]) ? (int)$row["tenant_id"] : null; // แก้ไขจุดที่ 1: แปลงค่า tenant_id
+        $row["tenant_id"] = isset($row["tenant_id"]) ? (int)$row["tenant_id"] : null;
         $rooms[] = $row;
     }
     $stmt2->close();
@@ -165,7 +165,6 @@ $user_id = (int)param_api("user_id", 0);
 /*
 |--------------------------------------------------------------------------
 | list = รายชื่อผู้เช่า / ผู้ดูแล / ผู้เช่าเก่า
-| และถ้าเป็นแอดมิน จะส่ง pending + rooms กลับไปด้วย เพื่อรองรับหน้าเดิม
 |--------------------------------------------------------------------------
 */
 if ($action === "list") {
@@ -183,7 +182,7 @@ if ($action === "list") {
     $sql = "
         SELECT
             m.membership_id,
-            m.user_id AS tenant_id,  -- แก้ไขจุดที่ 2: ดึงค่า tenant_id จาก user_id
+            m.user_id AS tenant_id,
             m.user_id,
             m.dorm_id,
             COALESCE(m.room_id, r2.room_id, 0) AS room_id,
@@ -457,6 +456,7 @@ if ($action === "remove") {
             ORDER BY membership_id DESC
             LIMIT 1
         ");
+        $findMember = $conn->prepare("SELECT membership_id, room_id FROM {$T_MEM} WHERE user_id = ? AND dorm_id = ? AND approve_status = 'approved' AND role_code = 't' AND move_out_date IS NULL ORDER BY membership_id DESC LIMIT 1");
         $findMember->bind_param('ii', $target_user_id, $dorm_id);
         $findMember->execute();
         $member = $findMember->get_result()->fetch_assoc();
@@ -533,6 +533,94 @@ if ($action === "remove") {
             'ok' => false,
             'success' => false,
             'message' => 'Error: ' . $e->getMessage(),
+        ], 500);
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| move_room = ย้ายห้องพักภายในหอเดิม (เก็บประวัติย้อนหลัง)
+|--------------------------------------------------------------------------
+*/
+if ($action === "move_room") {
+    check_admin_permission($conn, $T_MEM, $admin_user_id, $dorm_id);
+
+    $target_user_id = (int)param_api("user_id", 0);
+    $old_room_id    = (int)param_api("old_room_id", 0);
+    $new_room_id    = (int)param_api("new_room_id", 0);
+
+    if ($target_user_id <= 0 || $dorm_id <= 0 || $old_room_id <= 0 || $new_room_id <= 0) {
+        jexit_api([
+            "success" => false,
+            "ok" => false,
+            "message" => "ข้อมูลที่ส่งมาทำรายการย้ายห้องไม่ครบถ้วน"
+        ], 400);
+    }
+
+    $conn->begin_transaction();
+    try {
+        // 1. เคลียร์ห้องเก่าในตาราง rh_rooms ให้กลับเป็นห้องว่าง
+        $stmt1 = $conn->prepare("UPDATE {$T_ROOMS} SET status = 'vacant', tenant_id = NULL WHERE room_id = ? AND dorm_id = ?");
+        $stmt1->bind_param("ii", $old_room_id, $dorm_id);
+        $stmt1->execute();
+        $stmt1->close();
+
+        // 2. ตรวจสอบสถานะห้องใหม่
+        $chkRoom = $conn->prepare("SELECT tenant_id, status, room_number FROM {$T_ROOMS} WHERE room_id = ? AND dorm_id = ? LIMIT 1");
+        $chkRoom->bind_param("ii", $new_room_id, $dorm_id);
+        $chkRoom->execute();
+        $roomRow = $chkRoom->get_result()->fetch_assoc();
+        $chkRoom->close();
+
+        if (!$roomRow) {
+            throw new Exception("ไม่พบข้อมูลห้องพักห้องใหม่ในระบบ");
+        }
+        if (!empty($roomRow["tenant_id"])) {
+            throw new Exception("ห้องใหม่เลขที่ " . $roomRow["room_number"] . " มีผู้เช่าคนอื่นพักอยู่แล้ว");
+        }
+        if (($roomRow["status"] ?? "") === "maintenance") {
+            throw new Exception("ห้องใหม่เลขที่ " . $roomRow["room_number"] . " อยู่ระหว่างการซ่อมบำรุง");
+        }
+
+        $newRoomNumber = (string)$roomRow["room_number"];
+
+        // อัปเดตผูกมัดห้องใหม่ในตาราง rh_rooms
+        $stmt2 = $conn->prepare("UPDATE {$T_ROOMS} SET status = 'occupied', tenant_id = ? WHERE room_id = ? AND dorm_id = ?");
+        $stmt2->bind_param("iii", $target_user_id, $new_room_id, $dorm_id);
+        $stmt2->execute();
+        $stmt2->close();
+
+        // 3. ใส่วันย้ายออกให้ประวัติห้องเก่าใน rh_dorm_memberships
+        $stmt3 = $conn->prepare("UPDATE {$T_MEM} SET move_out_date = NOW() WHERE user_id = ? AND room_id = ? AND move_out_date IS NULL AND approve_status = 'approved'");
+        $stmt3->bind_param("ii", $target_user_id, $old_room_id);
+        $stmt3->execute();
+        $stmt3->close();
+
+        // 4. บันทึกประวัติแถวใหม่ของห้องใหม่ใน rh_dorm_memberships
+        $stmt4 = $conn->prepare("INSERT INTO {$T_MEM} (user_id, dorm_id, room_id, role_code, approve_status, move_in_date) VALUES (?, ?, ?, 't', 'approved', NOW())");
+        $stmt4->bind_param("iii", $target_user_id, $dorm_id, $new_room_id);
+        $stmt4->execute();
+        $stmt4->close();
+
+        // 5. ส่งบันทึกกระดานแจ้งเตือน (Notifications) ไปหาฝั่งแอปผู้เช่า
+        $msgNoti = "ผู้ดูแลระบบได้ทำการย้ายห้องพักของคุณไปยัง ห้อง " . $newRoomNumber . " เรียบร้อยแล้ว";
+        $stmtN = $conn->prepare("INSERT INTO {$T_NOTI} (user_id, dorm_id, type_id, message, is_read) VALUES (?, ?, 1, ?, 0)");
+        $stmtN->bind_param("iis", $target_user_id, $dorm_id, $msgNoti);
+        $stmtN->execute();
+        $stmtN->close();
+
+        $conn->commit();
+        jexit_api([
+            "success" => true,
+            "ok" => true,
+            "message" => "ดำเนินการย้ายไปยังห้อง " . $newRoomNumber . " สำเร็จเรียบร้อยแล้ว"
+        ]);
+    } catch (Throwable $e) {
+        $conn->rollback();
+        jexit_api([
+            "success" => false,
+            "ok" => false,
+            "message" => $e->getMessage()
         ], 500);
     }
 }

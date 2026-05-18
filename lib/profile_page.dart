@@ -56,16 +56,19 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _loading = true;
   bool _isAdminViewing = false;
 
+  String _myRoleInApp = "tenant"; 
+
   String username = "";
   String fullName = "ไม่มีข้อมูล";
   String phone = "ไม่มีข้อมูล";
   String dormName = "";
-  String roleInDorm = "tenant";
+  String roleInDorm = "tenant"; 
   String tenantStatus = "waiting";
   String roomText = "ยังไม่ได้รับการจัดห้อง";
   String moveInDate = "-";
   String moveOutDate = "-";
   int _targetUserId = 0;
+  int _currentRoomId = 0; 
 
   bool get isDormAdmin => roleInDorm == "owner" || roleInDorm == "admin";
   bool get isFormerTenant => !isDormAdmin && (tenantStatus == "former" || (moveOutDate.trim().isNotEmpty && moveOutDate != "-"));
@@ -81,12 +84,14 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
+      final prefs = await SharedPreferences.getInstance();
+      _myRoleInApp = prefs.getString("role_in_dorm") ?? prefs.getString("role") ?? "tenant";
+
       if (_isAdminViewing) {
         final t = widget.tenantData!;
         _applyTenantData(t);
-        _targetUserId = _toInt(t["user_id"] ?? t["id"]);
+        _targetUserId = _toInt(t["user_id"] ?? t["id"] ?? t["uid"]);
       } else {
-        final prefs = await SharedPreferences.getInstance();
         _targetUserId = prefs.getInt("user_id") ?? 0;
       }
       
@@ -118,6 +123,8 @@ class _ProfilePageState extends State<ProfilePage> {
     roleInDorm = t["role_in_dorm"]?.toString() ?? "tenant";
     tenantStatus = (t["tenant_status"]?.toString() ?? "waiting").toLowerCase();
 
+    _currentRoomId = _toInt(t["room_id"]); 
+
     final rNo = t["room_number"]?.toString().trim() ?? "";
     final building = (t["building"]?.toString().trim().isNotEmpty == true)
         ? t["building"].toString().trim()
@@ -133,7 +140,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   int _toInt(dynamic v) => int.tryParse(v?.toString() ?? "") ?? 0;
 
-  // --- ฟังก์ชันแปลงวันที่เป็นไทย (วัน เดือนย่อ ปี พ.ศ.) ---
   String _prettyThaiDate(String? raw) {
     if (raw == null || raw.trim().isEmpty || raw.trim() == "-") return "-";
     try {
@@ -270,7 +276,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ]),
                   ),
                   const Spacer(),
-                  // แสดงวันที่แจ้งซ่อมแบบไทย
                   Text(_prettyThaiDate(item['created_at']), style: const TextStyle(fontSize: 11, color: Colors.black38)),
                 ]),
               ),
@@ -281,7 +286,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // --- แสดงผลบิลค่าเช่าด้วยเดือนไทยปีไทย ---
   Widget _buildBillCard(Map item) {
     const thFullMonths = [
       "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
@@ -376,7 +380,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       _historyMenuCard(icon: Icons.build_circle_outlined, title: "รายการแจ้งซ่อม", subtitle: "ดูประวัติแจ้งซ่อมย้อนหลัง", color: Colors.orange.shade800, onTap: () => _showHistorySheet(title: "ประวัติแจ้งซ่อม", apiFile: "repairs_api.php", action: "list_user_history")),
                     ],
                     const SizedBox(height: 40),
-                    if (_isAdminViewing && !isFormerTenant && !isDormAdmin) _removeTenantBtn() else if (!_isAdminViewing) _logoutBtn(),
+                    if (_isAdminViewing && !isFormerTenant && (_myRoleInApp == "owner" || _myRoleInApp == "admin") && !isDormAdmin) ...[
+                      _moveRoomBtn(),
+                      const SizedBox(height: 12),
+                      _removeTenantBtn(),
+                    ] else if (!_isAdminViewing) _logoutBtn(),
                   ]),
                 ),
               ),
@@ -500,5 +508,253 @@ class _ProfilePageState extends State<ProfilePage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginPage()), (_) => false);
+  }
+
+  // ==========================================
+  // 🛠️ ส่วนต่อขยายระบบย้ายห้องพัก (ปรับปรุงดีไซน์เป็นโครงสร้าง Dialog แบบกลุ่มออก)
+  // ==========================================
+  Widget _moveRoomBtn() => SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _loadAndShowMoveRoomDialog, 
+          icon: const Icon(Icons.swap_horiz_rounded),
+          label: const Text("ย้ายห้องพัก", style: TextStyle(fontWeight: FontWeight.bold, fontSize: fBody)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: cBrown,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      );
+
+  Future<void> _loadAndShowMoveRoomDialog() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+
+    List<dynamic> allRoomsData = [];
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String dormId = (prefs.getInt("dorm_id") ?? 0).toString();
+      final String adminId = (prefs.getInt("user_id") ?? 0).toString();
+
+      final res = await http.post(
+        Uri.parse(AppConfig.url("tenants_api.php")),
+        body: {
+          "action": "pending_list", 
+          "dorm_id": dormId, 
+          "admin_user_id": adminId, 
+        },
+      );
+
+      final data = jsonDecode(res.body);
+      
+      if (data["rooms"] != null) {
+        allRoomsData = data["rooms"];
+      } else if (data["data"] != null) {
+        allRoomsData = data["data"];
+      }
+    } catch (e) {
+      debugPrint("Fetch Rooms Data Error: ${e.toString()}");
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+        _showMoveRoomDialogWithList(allRoomsData);
+      }
+    }
+  }
+
+  Future<void> _showMoveRoomDialogWithList(List<dynamic> vacantRooms) async {
+    int? selectedRoomId; 
+
+    final List<dynamic> finalDisplayRooms = vacantRooms.where((room) {
+      final int tId = _toInt(room['tenant_id']);
+      final String stat = (room['status'] ?? '').toString().toLowerCase();
+      return tId == 0 && (stat == 'vacant' || stat == '' || stat == 'null');
+    }).toList();
+
+    final List<dynamic> dropdownRooms = finalDisplayRooms.isNotEmpty ? finalDisplayRooms : vacantRooms;
+
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        // ปรับดีไซน์โครงสร้างรูปทรงมนโค้งมนเหมือนกลุ่มยืนยันการออกหอพัก
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)), 
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 🎨 วงกลมไอคอนด้านบน ปรับให้สวยงามสอดคล้องกับธีมแอป
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: cBrown.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.swap_horiz_rounded, color: cBrown, size: 45),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // หัวข้อเรื่องหลัก
+                  const Text(
+                    "ย้ายห้องพักในหอเดิม",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cTextMain),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // ข้อมูลผู้เช่าแบบย่อ
+                  Text(
+                    "ผู้เช่า: $fullName\nห้องปัจจุบัน: ${roomText.replaceAll("ห้อง", "")}",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: fDetail, color: Colors.grey, height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // เมนูดรอปดาวน์เลือกเลขห้องพักใหม่
+                  dropdownRooms.isEmpty
+                  ? Container(
+                      padding: const EdgeInsets.all(16),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+                      ),
+                      child: const Text(
+                        "❌ ไม่มีห้องว่างเหลืออยู่ในระบบหอพักนี้",
+                        style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: cVanilla.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: cBrown.withOpacity(0.3)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: selectedRoomId, 
+                          hint: const Text("--- คลิกเลือกเลขห้องใหม่ ---", style: TextStyle(fontSize: 13, color: Colors.grey)),
+                          isExpanded: true,
+                          icon: const Icon(Icons.arrow_drop_down_rounded, color: cBrown, size: 30),
+                          items: dropdownRooms.map((room) {
+                            final int rId = int.tryParse(room['room_id'].toString()) ?? 0; 
+                            final String bld = room['building']?.toString() ?? '';
+                            final String roomNo = room['room_number']?.toString() ?? '';
+                            final String floor = room['floor']?.toString() ?? '0';
+                            final String displayText = bld.isNotEmpty ? "$bld / ห้อง $roomNo (ชั้น $floor)" : "ห้อง $roomNo (ชั้น $floor)";
+                            
+                            return DropdownMenuItem<int>(
+                              value: rId, 
+                              child: Text(displayText, style: const TextStyle(fontSize: 13, color: cTextMain, fontWeight: FontWeight.bold)),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              selectedRoomId = value; 
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 30),
+                  
+                  // 🛠️ ส่วนของปุ่มกดยกเลิกและยืนยัน จัดดีไซน์ชิดกันเต็มความกว้างแบบปุ่มออกหอพัก
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: selectedRoomId == null 
+                              ? null 
+                              : () {
+                                  Navigator.pop(ctx, false); 
+                                  _processMoveRoom(selectedRoomId!); 
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: cTeddy,
+                            disabledBackgroundColor: Colors.grey.shade300,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text(
+                            "ยืนยัน",
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFDCD2C1)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text(
+                            "ยกเลิก",
+                            style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processMoveRoom(int newRoomId) async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final int oldRoomId = _currentRoomId; 
+
+      final res = await http.post(
+        Uri.parse(AppConfig.url("tenants_api.php")),
+        body: {
+          "action": "move_room", 
+          "dorm_id": (prefs.getInt("dorm_id") ?? 0).toString(),
+          "admin_user_id": (prefs.getInt("user_id") ?? 0).toString(),
+          "user_id": _targetUserId.toString(),
+          "old_room_id": oldRoomId.toString(),
+          "new_room_id": newRoomId.toString(),
+        },
+      );
+
+      final data = jsonDecode(res.body);
+
+      if (data["success"] == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("ย้ายห้องพักผู้เช่าสำเร็จเรียบร้อยแล้ว! 🎉"), backgroundColor: cTeddy)
+        );
+        Navigator.pop(context, true);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("ย้ายห้องไม่สำเร็จ: ${data['message']}"), backgroundColor: Colors.redAccent)
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Move Room Error: ${e.toString()}");
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 }

@@ -36,7 +36,6 @@ class _PlatformUserListPageState extends State<PlatformUserListPage>
   static const Color cTextMain = Color(0xFF2A1F17);
   static const Color cDark = Color(0xFF523D2D);
 
-  // อิงขนาดจาก TenantListAdminPage
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
   static const double fDetail = 13.0;
@@ -629,6 +628,14 @@ class PlatformUserDetailPage extends StatelessWidget {
       if (data["success"] == true) {
         if (!context.mounted) return;
         Navigator.pop(context, true);
+      } else {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data["message"] ?? "ไม่สามารถลบผู้ใช้งานได้"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       debugPrint("Delete Error: $e");
@@ -752,31 +759,32 @@ class PlatformUserDetailPage extends StatelessWidget {
               isAdmin ? "ผู้ดูแลระบบ" : "ผู้ดูแลหอพัก",
             ),
             const SizedBox(height: 35),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: () => _confirmDelete(context),
-                  label: const Text(
-                    "ลบออกจากระบบ",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: fHeader,
+            
+            // 🛠️ ส่วนที่ปรับปรุง: เปลี่ยนดีไซน์ปุ่มลบให้เป็นแนวเดียวกับปุ่ม _logoutBtn ใน profile_page.dart ตามขอ
+            if (!isAdmin)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _confirmDelete(context),
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text(
+                      "นำออกจากระบบ",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: fBody),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF5252),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cDark, // ใช้สีโทนน้ำตาลเข้มตามธีมแอปหลัก (เหมือน cTeddy)
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    elevation: 0,
                   ),
                 ),
               ),
-            ),
             const SizedBox(height: 40),
           ],
         ),

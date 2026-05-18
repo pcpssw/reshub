@@ -5,11 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config.dart';
-// หมายเหตุ: ตรวจสอบให้แน่ใจว่า BillItem ถูกนิยามไว้ในไฟล์ที่ import มา 
-// หรือจะแปะคลาส BillItem ไว้ในไฟล์นี้ด้วยก็ได้ถ้ายังแดงอยู่
+import 'bill_owner_page.dart'; // import เพื่อดึงโมเดล BillItem มาใช้งานร่วมกัน
 
 class BillDetailPage extends StatefulWidget {
-  final dynamic item; // ใช้ dynamic ชั่วคราวถ้า Class BillItem มีปัญหาเรื่องการแชร์ไฟล์
+  final BillItem item; // เปลี่ยนจาก dynamic เป็น BillItem เพื่อความปลอดภัยของข้อมูล
   final bool isAdmin;
 
   const BillDetailPage({
@@ -34,9 +33,9 @@ class _BillDetailPageState extends State<BillDetailPage> {
   static const double fDetail = 13.0;
   static const double fCaption = 11.0;
 
-  late dynamic it; // ใช้ dynamic เพื่อลดปัญหา Type Mismatch เบื้องต้น
+  late BillItem it; // กำหนด Type ให้ชัดเจนเพื่อป้องกันปัญหาตอนดึง property มาโชว์
   late String statusKey;
-  bool loading = true;
+  bool loading = true; 
   bool saving = false;
   int userId = 0;
 
@@ -49,9 +48,8 @@ class _BillDetailPageState extends State<BillDetailPage> {
   }
 
   void _updateStatusKey() {
-    // ดึงค่า statusKey ออกมาเช็คความถูกต้อง
-    statusKey = (it.statusKey ?? "unpaid").toString().toLowerCase().trim();
-    const validStatuses = ["paid", "unpaid", "overdue", "no_tenant"];
+    statusKey = (it.statusKey).toLowerCase().trim();
+    const validStatuses = ["paid", "unpaid", "overdue", "no_tenant", "pending"];
     if (!validStatuses.contains(statusKey)) {
       statusKey = "unpaid";
     }
@@ -66,20 +64,6 @@ class _BillDetailPageState extends State<BillDetailPage> {
   double _safeDouble(dynamic value) {
     if (value == null) return 0.0;
     return double.tryParse(value.toString()) ?? 0.0;
-  }
-
-  // คำนวณยอดรวมที่หน้า Detail (ให้ตรงกับ Logic หน้า Admin)
-  double get _calculateTotal {
-    double rent = _safeDouble(it.rent);
-    double common = _safeDouble(it.commonFee);
-    double water = _safeDouble(it.waterBill);
-    double elec = _safeDouble(it.elecBill);
-    
-    // ถ้าใน DB ค่าน้ำ/ค่าไฟเป็น 0 ให้ลองคำนวณจากหน่วย (เผื่อไว้)
-    if (water == 0) water = _safeDouble(it.waterUnit) * _safeDouble(it.waterPricePerUnit);
-    if (elec == 0) elec = _safeDouble(it.elecUnit) * _safeDouble(it.elecPricePerUnit);
-
-    return rent + common + water + elec;
   }
 
   TextStyle _kanit({double? size, FontWeight? weight, Color? color}) {
@@ -163,7 +147,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
       child: Column(
         children: [
           _rowItem("ค่าเช่าห้อง", it.rent),
-          if (_safeDouble(it.commonFee) > 0) _rowItem("ค่าส่วนกลาง", it.commonFee),
+          if (it.commonFee > 0) _rowItem("ค่าส่วนกลาง", it.commonFee),
           _rowItemWithDetail("ค่าน้ำ", it.waterBill, it.waterUnit, it.waterPricePerUnit),
           _rowItemWithDetail("ค่าไฟ", it.elecBill, it.elecUnit, it.elecPricePerUnit),
           const Divider(height: 20, thickness: 0.5),
@@ -171,7 +155,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text("รวมสุทธิ", style: _kanit(size: fBody, color: cIcon)),
-              Text("${_calculateTotal.toStringAsFixed(0)} บาท", style: _kanit(size: fTitle, weight: FontWeight.bold, color: cTextMain)),
+              Text("${it.calculatedTotal.toStringAsFixed(0)} บาท", style: _kanit(size: fTitle, weight: FontWeight.bold, color: cTextMain)),
             ],
           ),
         ],
@@ -195,7 +179,6 @@ class _BillDetailPageState extends State<BillDetailPage> {
     double u = _safeDouble(unit);
     double p = _safeDouble(price);
     
-    // ถ้า totalValue เป็น 0 ให้ลองเอายูนิตคูณราคา
     if (tV == 0) tV = u * p;
 
     return Padding(
@@ -255,7 +238,7 @@ class _BillDetailPageState extends State<BillDetailPage> {
           Text("จัดการสถานะบิล", style: _kanit(size: fBody, color: cTextMain)),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: statusKey,
+            value: (statusKey == "pending" || statusKey == "overdue") ? "unpaid" : statusKey,
             style: _kanit(size: fBody, color: cTextMain),
             decoration: InputDecoration(
               isDense: true, filled: true, fillColor: Colors.white,
@@ -264,7 +247,8 @@ class _BillDetailPageState extends State<BillDetailPage> {
             ),
             items: [
               DropdownMenuItem(value: "paid", child: Text("ชำระแล้ว", style: _kanit(size: fBody))),
-              DropdownMenuItem(value: "unpaid", child: Text("ค้างชำระ", style: _kanit(size: fBody))),            ],
+              DropdownMenuItem(value: "unpaid", child: Text("ค้างชำระ", style: _kanit(size: fBody))),
+            ],
             onChanged: (v) => setState(() => statusKey = v ?? statusKey),
           ),
           const SizedBox(height: 16),
@@ -281,8 +265,34 @@ class _BillDetailPageState extends State<BillDetailPage> {
         ],
       );
     } else {
+      // 🌟 เช็กก่อนว่าแอดมินส่งบิลหรือยัง ถ้ายังไม่มี paymentId หรือเป็น 0 แปลว่ายังไม่ได้กดส่งบิล
+      if (it.paymentId == null || it.paymentId == 0) {
+        const Color fallbackColor = Color(0xFFF57C00); // ใช้สีส้ม/เหลืองนวลให้เข้ากับดีไซน์ธีม
+        return Container(
+          width: double.infinity, padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: fallbackColor.withOpacity(0.1), 
+            borderRadius: BorderRadius.circular(15), 
+            border: Border.all(color: fallbackColor.withOpacity(0.4))
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_empty_rounded, color: fallbackColor, size: 26),
+              const SizedBox(width: 12),
+              Text("อยู่ระหว่างจัดเตรียมบิล (ยังไม่ส่ง)", style: _kanit(color: fallbackColor, weight: FontWeight.bold, size: fBody)),
+            ],
+          ),
+        );
+      }
+
+      // 🔹 ถ้าส่งบิลเข้าสู่ระบบแล้ว ค่อยแสดงผลสถานะจริงตามปกติ
       Color statusColor = statusKey == "paid" ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
-      String statusText = statusKey == "paid" ? "ชำระเงินเรียบร้อยแล้ว" : "ค้างชำระ";
+      String statusText = "ค้างชำระ";
+      if (statusKey == "paid") statusText = "ชำระเงินเรียบร้อยแล้ว";
+      if (statusKey == "pending") statusText = "รอตรวจสอบการชำระเงิน";
+      if (statusKey == "overdue") statusText = "เลยกำหนดชำระเงิน";
+      
       return Container(
         width: double.infinity, padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(15), border: Border.all(color: statusColor.withOpacity(0.4))),
@@ -301,20 +311,35 @@ class _BillDetailPageState extends State<BillDetailPage> {
   String _toImageUrl(String raw) => raw.isEmpty ? "" : (raw.startsWith("http") ? raw : AppConfig.url(raw));
 
   Future<void> _refreshDetail() async {
-    // โหลดข้อมูลใหม่จาก API เพื่ออัปเดตสลิปหรือสถานะล่าสุด
+    setState(() => loading = true);
     try {
-      final res = await http.post(Uri.parse(AppConfig.url("bills_api.php")),
-        body: {"action": "get_bill_detail", "room_id": it.roomId.toString(), "month": it.month.toString(), "year": it.year.toString()});
+      final Map<String, String> bodyParams = {};
+      
+      if (it.paymentId != null && it.paymentId! > 0) {
+        bodyParams["action"] = "getPaymentById";
+        bodyParams["payment_id"] = it.paymentId.toString();
+      } else {
+        bodyParams["action"] = "get";
+        bodyParams["user_id"] = widget.isAdmin ? (it.tenantId ?? userId).toString() : userId.toString();
+        bodyParams["month"] = it.month.toString();
+        bodyParams["year"] = it.year.toString();
+      }
+
+      final res = await http.post(Uri.parse(AppConfig.url("bills_api.php")), body: bodyParams);
       final data = jsonDecode(res.body);
-      if (data["ok"] == true) {
+      
+      if (data["ok"] == true && data["data"] != null) {
         setState(() {
-          // ตรงนี้ถ้าใช้ dynamic 'it' จะอัปเดตง่ายขึ้น
-          it = data["data"]; 
+          // ใช้ Factory แปลงข้อมูล Map กลับมาเป็นคลาสวัตถุ BillItem เสมอ ข้อมูลจะไม่แครชเมื่อรีเฟรช
+          it = BillItem.fromJson(Map<String, dynamic>.from(data["data"])); 
           _updateStatusKey();
         });
       }
-    } catch (e) { debugPrint(e.toString()); }
-    finally { setState(() => loading = false); }
+    } catch (e) { 
+      debugPrint("Refresh Error: ${e.toString()}"); 
+    } finally { 
+      setState(() => loading = false); 
+    }
   }
 
   Future<void> _saveStatus() async {

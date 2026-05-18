@@ -26,7 +26,7 @@ class _NotificationPageState extends State<NotificationPage> {
   static const Color cTeddy    = Color(0xFF523D2D); 
   static const Color cBrown    = Color(0xFF8D7456); 
   static const Color cAccent   = Color(0xFFDCD2C1); 
-  static const Color cWhite    = Colors.white;
+  static const Color fWhite    = Colors.white;
 
   static const double fTitle   = 15.0; 
   static const double fHeader  = 13.0; 
@@ -54,8 +54,6 @@ class _NotificationPageState extends State<NotificationPage> {
     super.initState();
     _init();
   }
-
-  // --- 🎨 Improved Custom Dialogs (w900 & line-height 1.5) ---
 
   void _showNotFoundDialog(String message) {
     showDialog(
@@ -102,6 +100,145 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  // 🌟 ป๊อปอัปยืนยันการลบทีละรายการ - ปรับดีไซน์ถอดแบบจากรูปภาพให้เหมือนกันแล้ว!
+  Future<bool?> _showConfirmDeleteDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 🔴 วงกลมสีชมพูอ่อน + ไอคอนถังขยะสีแดงตรงกลาง เหมือนกัน
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFF0F1), 
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded, 
+                  color: Color(0xFFF05454), 
+                  size: 38,
+                ),
+              ),
+              const SizedBox(height: 24),
+              // 🏷️ หัวข้อ "ยืนยันการลบ" สีน้ำตาลเข้มหนา
+              const Text(
+                "ยืนยันการลบ", 
+                style: TextStyle(
+                  fontSize: 18, 
+                  fontWeight: FontWeight.w900, 
+                  color: cTeddy,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // 💬 ข้อความย่อยจัดกลาง 2 บรรทัด สีเทาจาง
+              const Text(
+                "ต้องการลบการแจ้งเตือนนี้ใช่หรือไม่?", 
+                textAlign: TextAlign.center, 
+                style: TextStyle(
+                  fontSize: 13, 
+                  color: Colors.black45, 
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Text(
+                "ข้อมูลจะหายไปถาวร", 
+                textAlign: TextAlign.center, 
+                style: TextStyle(
+                  fontSize: 13, 
+                  color: Colors.black45, 
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 28),
+              // 🎛️ กลุ่มปุ่มกดยืนยัน (สีน้ำตาล Teddy) และ ยกเลิก (ขอบมนสีจาง)
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cTeddy, 
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        "ยืนยัน", 
+                        style: TextStyle(
+                          color: Colors.white, 
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFE0D8CC)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text(
+                        "ยกเลิก", 
+                        style: TextStyle(
+                          color: cTeddy, 
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 🌟 ฟังก์ชันส่งคำสั่งลบการแจ้งเตือนทีละอันไปยัง API
+  Future<void> _deleteOneNotification(int notificationId, int index) async {
+    try {
+      final body = {
+        "action": "delete", 
+        "notification_id": notificationId.toString(),
+        "user_id": userId.toString()
+      };
+      final res = await http.post(_notiApi, body: body).timeout(const Duration(seconds: 10));
+      final data = _tryJson(res.body);
+      
+      if (data != null && (data["success"] == true || data["ok"] == true)) {
+        setState(() {
+          items.removeAt(index);
+        });
+        _loadUnreadCount();
+        _snack("ลบการแจ้งเตือนเรียบร้อยแล้ว");
+      } else {
+        _snack("ลบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+        _loadAll(); 
+      }
+    } catch (_) {
+      _snack("เชื่อมต่อฐานข้อมูลไม่สำเร็จ");
+      _loadAll();
+    }
+  }
+
+  // 🌟 ฟังก์ชันลบทั้งหมด - ดีไซน์ถอดแบบจากรูปภาพเป๊ะ ๆ
   Future<void> _deleteAllNotifications() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -110,49 +247,97 @@ class _NotificationPageState extends State<NotificationPage> {
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // 🔴 วงกลมสีชมพูอ่อน + ไอคอนถังขยะสีแดงตรงกลาง เหมือนกัน
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(color: Color(0xFFFFEBEE), shape: BoxShape.circle),
-                child: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 40),
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFF0F1), 
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_sweep_rounded, 
+                  color: Color(0xFFF05454), 
+                  size: 38,
+                ),
               ),
-              const SizedBox(height: 20),
-              const Text("ยืนยันการลบ", 
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: cTeddy)),
-              const SizedBox(height: 12),
-              const Text("ต้องการลบการแจ้งเตือนทั้งหมดใช่หรือไม่?\nข้อมูลจะหายไปถาวร", 
-                textAlign: TextAlign.center, 
-                style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.5)),
               const SizedBox(height: 24),
+              // 🏷️ หัวข้อ "ยืนยันการลบ" สีน้ำตาลเข้มหนา
+              const Text(
+                "ยืนยันการลบ", 
+                style: TextStyle(
+                  fontSize: 18, 
+                  fontWeight: FontWeight.w900, 
+                  color: cTeddy,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // 💬 ข้อความย่อยจัดกลาง 2 บรรทัด สีเทาจาง
+              const Text(
+                "ต้องการลบการแจ้งเตือนทั้งหมดใช่หรือไม่?", 
+                textAlign: TextAlign.center, 
+                style: TextStyle(
+                  fontSize: 13, 
+                  color: Colors.black45, 
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Text(
+                "ข้อมูลจะหายไปถาวร", 
+                textAlign: TextAlign.center, 
+                style: TextStyle(
+                  fontSize: 13, 
+                  color: Colors.black45, 
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 28),
+              // 🎛️ กลุ่มปุ่มกดยืนยัน (สีน้ำตาล Teddy) และ ยกเลิก (ขอบมนสีจาง)
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: cTeddy,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: cTeddy, 
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         elevation: 0,
                       ),
-                      child: const Text("ยืนยัน", 
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                      child: const Text(
+                        "ยืนยัน", 
+                        style: TextStyle(
+                          color: Colors.white, 
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: cAccent),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: Color(0xFFE0D8CC)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text("ยกเลิก", 
-                        style: TextStyle(color: cTeddy, fontWeight: FontWeight.w900)),
+                      child: const Text(
+                        "ยกเลิก", 
+                        style: TextStyle(
+                          color: cTeddy, 
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -164,13 +349,17 @@ class _NotificationPageState extends State<NotificationPage> {
     );
     if (ok == true) {
       try {
-        await http.post(_notiApi, body: {"action": "deleteAll", "user_id": userId.toString(), "dorm_id": dormId.toString()});
+        final res = await http.post(_notiApi, body: {"action": "deleteAll", "user_id": userId.toString(), "dorm_id": dormId.toString()});
+        final data = _tryJson(res.body);
+        if (data != null && (data["success"] == true || data["ok"] == true)) {
+          _snack("ลบแจ้งเตือนทั้งหมดเรียบร้อยแล้ว");
+        }
         _loadAll();
-      } catch (_) {}
+      } catch (_) {
+        _snack("เชื่อมต่อฐานข้อมูลไม่สำเร็จ");
+      }
     }
   }
-
-  // --- Logic & API Methods ---
 
   Future<void> _init() async {
     setState(() => loading = true);
@@ -238,12 +427,10 @@ class _NotificationPageState extends State<NotificationPage> {
     } catch (_) {}
   }
 
-  // ✅ แก้ไข: คำขออนุมัติ (new_registration) จะไม่มี Navigator.push ทำให้ไม่มีหน้าจอเด้ง
   Future<void> _openByNotification(Map<String, dynamic> it) async {
     final String type = (it["type"] ?? "").toString().toLowerCase();
     final int refId = int.tryParse("${it["ref_id"]}") ?? 0;
     
-    // ไม่ต้องแสดง loading ถ้าเป็นประเภทที่ไม่เด้งหน้า
     if (type != "new_registration") {
       if (mounted) setState(() => loading = true);
     }
@@ -273,8 +460,6 @@ class _NotificationPageState extends State<NotificationPage> {
           }
         }
       }
-      
-      // ทุกประเภทเมื่อกดแล้วจะ Mark Read และโหลดข้อมูลใหม่เสมอ
       await _loadAll();
     } catch (e) {
       _snack("ไม่สามารถเข้าถึงข้อมูลได้");
@@ -348,7 +533,7 @@ class _NotificationPageState extends State<NotificationPage> {
     return Scaffold(
       backgroundColor: cVanilla,
       appBar: AppBar(
-        backgroundColor: cWhite, elevation: 0.5, centerTitle: true,
+        backgroundColor: fWhite, elevation: 0.5, centerTitle: true,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: cTeddy), onPressed: () => Navigator.pop(context)),
         title: Text("แจ้งเตือน ${unread > 0 ? '($unread)' : ''}", style: const TextStyle(fontWeight: FontWeight.bold, color: cTeddy, fontSize: fTitle)),
         actions: [
@@ -369,14 +554,42 @@ class _NotificationPageState extends State<NotificationPage> {
                       final it = items[i];
                       final isRead = (int.tryParse("${it["is_read"]}") ?? 0) == 1;
                       final nid = int.tryParse("${it["notification_id"]}") ?? 0;
-                      return Container(
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), color: cWhite, border: isRead ? Border.all(color: cTeddy.withOpacity(0.05)) : Border.all(color: cAccent, width: 1.2)),
-                        child: ListTile(
-                          onTap: () async { if (!isRead && nid > 0) await _markRead(nid); await _openByNotification(it); },
-                          leading: _getIconByType(it["type"]?.toString().toLowerCase() ?? "", isRead),
-                          title: Text(it["title"] ?? "", style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold, fontSize: fHeader, color: isRead ? cTeddy.withOpacity(0.7) : cTeddy)),
-                          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(it["message"] ?? "", maxLines: 2, style: TextStyle(fontSize: fBody, color: cTeddy.withOpacity(0.8))), const SizedBox(height: 4), Text(_prettyThaiDate(it["created_at"] ?? ""), style: TextStyle(fontSize: fCaption, color: cBrown.withOpacity(0.6)))]),
-                          trailing: isRead ? null : const Icon(Icons.circle, size: 8, color: Colors.redAccent),
+                      
+                      return Dismissible(
+                        key: Key(nid.toString()),
+                        direction: DismissDirection.endToStart, 
+                        confirmDismiss: (direction) async {
+                          final bool? confirm = await _showConfirmDeleteDialog();
+                          return confirm ?? false;
+                        },
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text("ลบข้อมูล", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                              SizedBox(width: 8),
+                              Icon(Icons.delete_forever_rounded, color: Colors.white, size: 22),
+                            ],
+                          ),
+                        ),
+                        onDismissed: (direction) {
+                          _deleteOneNotification(nid, i); 
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), color: fWhite, border: isRead ? Border.all(color: cTeddy.withOpacity(0.05)) : Border.all(color: cAccent, width: 1.2)),
+                          child: ListTile(
+                            onTap: () async { if (!isRead && nid > 0) await _markRead(nid); await _openByNotification(it); },
+                            leading: _getIconByType(it["type"]?.toString().toLowerCase() ?? "", isRead),
+                            title: Text(it["title"] ?? "", style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold, fontSize: fHeader, color: isRead ? cTeddy.withOpacity(0.7) : cTeddy)),
+                            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(it["message"] ?? "", maxLines: 2, style: TextStyle(fontSize: fBody, color: cTeddy.withOpacity(0.8))), const SizedBox(height: 4), Text(_prettyThaiDate(it["created_at"] ?? ""), style: TextStyle(fontSize: fCaption, color: cBrown.withOpacity(0.6)))]),
+                            trailing: isRead ? null : const Icon(Icons.circle, size: 8, color: Colors.redAccent),
+                          ),
                         ),
                       );
                     },

@@ -55,7 +55,7 @@ $action = trim((string)param('action', 'listNotifications'));
 $aliasMap = [
     'unread_count' => 'unreadCount',
     'mark_read'    => 'markRead',
-    'delete'       => 'deleteSingle',
+    'delete'       => 'deleteSingle', // รองรับคำว่า 'delete' จาก Flutter ตรงนี้
 ];
 if (isset($aliasMap[$action])) $action = $aliasMap[$action];
 

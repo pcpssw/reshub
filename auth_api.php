@@ -32,8 +32,6 @@ require_once __DIR__ . '/db.php';
 mysqli_set_charset($conn, 'utf8mb4');
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-// --- Helper Functions ---
-
 function auth_json(array $data, int $code = 200): void {
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
@@ -102,6 +100,7 @@ function find_dorm_by_code(mysqli $conn, string $dormCode): ?array {
     return $dorm ?: null;
 }
 
+// ✨ ฟังก์ชันโหลดข้อมูลผู้เช่าและโปรไฟล์ตัวเดิมที่สมบูรณ์แบบ ข้อมูลไม่หายแน่นอน ✨
 function load_profile_payload(mysqli $conn, int $userId): array {
     $stmt = $conn->prepare('SELECT user_id, username, full_name, phone, user_level FROM rh_users WHERE user_id=? LIMIT 1');
     $stmt->bind_param('i', $userId);
@@ -157,6 +156,25 @@ function load_profile_payload(mysqli $conn, int $userId): array {
             $room = $stmt->get_result()->fetch_assoc();
             $stmt->close();
         }
+
+        if (!$room && $dormId > 0 && (($membership['move_out_date'] ?? null) === null || trim((string)$membership['move_out_date']) === '')) {
+            $stmt = $conn->prepare(
+                "SELECT
+                    r.room_id, r.room_number, r.floor, r.base_rent, r.status,
+                    b.building_id, b.building_name,
+                    rt.type_id, rt.type_name
+                 FROM rh_rooms r
+                 LEFT JOIN rh_buildings b ON b.building_id = r.building_id
+                 LEFT JOIN rh_room_types rt ON rt.type_id = r.type_id
+                 WHERE r.tenant_id=? AND r.dorm_id=?
+                 ORDER BY r.room_id ASC
+                 LIMIT 1"
+            );
+            $stmt->bind_param('ii', $userId, $dormId);
+            $stmt->execute();
+            $room = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
     }
 
     $roleInDorm = $membership ? role_in_dorm_from_code($membership['role_code'] ?? null) : null;
@@ -179,14 +197,34 @@ function load_profile_payload(mysqli $conn, int $userId): array {
         'phone' => $user['phone'],
         'user_level' => $user['user_level'],
         'platform_role' => $user['user_level'] === 'a' ? 'platform_admin' : 'user',
+
         'membership_id' => $membership ? (int)$membership['membership_id'] : 0,
         'role_in_dorm' => $roleInDorm,
         'approve_status' => $approveStatus,
         'tenant_status' => $tenantStatus,
+
         'dorm_id' => isset($membership['dorm_id']) ? (int)$membership['dorm_id'] : null,
         'dorm_name' => $membership['dorm_name'] ?? null,
+
+        'move_in_date' => format_mysql_date($membership['move_in_date'] ?? null),
+        'move_out_date' => format_mysql_date($membership['move_out_date'] ?? null),
+
+        'room_id' => $room ? (int)$room['room_id'] : (int)($membership['room_id'] ?? 0),
         'room_number' => $room['room_number'] ?? null,
+        'floor' => $room ? (int)$room['floor'] : null,
+        'room_status' => $room['status'] ?? null,
+        'base_rent' => $room ? (float)$room['base_rent'] : null,
+        'building_id' => ($room && $room['building_id'] !== null) ? (int)$room['building_id'] : null,
+        'building_name' => $room['building_name'] ?? null,
+        'building' => $room['building_name'] ?? null,
+        'room_type_id' => ($room && $room['type_id'] !== null) ? (int)$room['type_id'] : null,
+        'room_type_name' => $room['type_name'] ?? null,
     ];
+}
+
+// ฟังก์ชันช่วยเช็คภาษาอังกฤษหรือตัวเลข
+function is_english_or_digit(string $value): bool {
+    return preg_match('/^[a-zA-Z0-9]+$/', $value);
 }
 
 // --- Main Logic ---
@@ -199,13 +237,12 @@ try {
         auth_json(['success' => false, 'message' => 'Missing action'], 400);
     }
 
-    // 1. ตรวจสอบโค้ดหอพัก
     if ($action === 'lookup_dorm') {
         $dormCode = trim((string)($data['dorm_code'] ?? ''));
         if ($dormCode === '') auth_json(['success' => false, 'message' => 'กรุณากรอกโค้ดหอพัก'], 400);
         
-        // บังคับภาษาอังกฤษ/เลข สำหรับโค้ดหอพัก
-        if (!preg_match('/^[a-zA-Z0-9]+$/', $dormCode)) {
+        // 🛑 ตรวจสอบโค้ดหอพัก ต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น
+        if (!is_english_or_digit($dormCode)) {
             auth_json(['success' => false, 'message' => 'โค้ดหอพักต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น'], 400);
         }
 
@@ -214,7 +251,35 @@ try {
         auth_json(['success' => true, 'dorm_id' => (int)$dorm['dorm_id'], 'dorm_name' => $dorm['dorm_name'], 'dorm_code' => $dorm['dorm_code']]);
     }
 
-    // 2. สมัครสมาชิก
+    if ($action === 'login') {
+        $username = trim((string)($data['username'] ?? ''));
+        $password = (string)($data['password'] ?? '');
+        if ($username === '' || $password === '') auth_json(['success' => false, 'message' => 'กรอกข้อมูลไม่ครบ'], 400);
+
+        $stmt = $conn->prepare('SELECT user_id, username, password, full_name, user_level FROM rh_users WHERE username=? OR phone=? LIMIT 1');
+        $stmt->bind_param('ss', $username, $username);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$user || !password_verify($password, (string)$user['password'])) {
+            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'], 401);
+        }
+
+        $userId = (int)$user['user_id'];
+        if (($user['user_level'] ?? '') === 'a') {
+            auth_json(['success' => true, 'user' => ['user_id' => $userId, 'username' => $user['username'], 'full_name' => $user['full_name'], 'platform_role' => 'platform_admin', 'approve_status' => 'approved', 'role_in_dorm' => 'admin']]);
+        }
+
+        $profile = load_profile_payload($conn, $userId);
+
+        if ($profile['tenant_status'] === 'former' || $profile['approve_status'] === 'inactive' || $profile['approve_status'] === 'rejected') {
+            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'], 401);
+        }
+
+        auth_json(['success' => true, 'user' => $profile]);
+    }
+
     if ($action === 'register') {
         $fullName = trim((string)($data['full_name'] ?? ''));
         $phone = trim((string)($data['phone'] ?? ''));
@@ -226,25 +291,27 @@ try {
             auth_json(['success' => false, 'message' => 'กรุณากรอกข้อมูลให้ครบ'], 400);
         }
 
-        // ตรวจสอบภาษาอังกฤษ/เลข (Username & Password & Dorm Code)
-        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
-            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้งานต้องเป็นภาษาอังกฤษหรือตัวเลข และมีความยาวอย่างน้อย 6 ตัว'], 400);
-        }
-        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $password)) {
-            auth_json(['success' => false, 'message' => 'รหัสผ่านต้องเป็นภาษาอังกฤษหรือตัวเลข และมีความยาวอย่างน้อย 6 ตัว'], 400);
-        }
-        if (!preg_match('/^[a-zA-Z0-9]+$/', $dormCode)) {
-            auth_json(['success' => false, 'message' => 'โค้ดหอพักต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น'], 400);
-        }
         if (!preg_match('/^[0-9]{10}$/', $phone)) {
             auth_json(['success' => false, 'message' => 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก'], 400);
+        }
+
+        // 🛑 ตรวจสอบความปลอดภัยภาษาอังกฤษ/ตัวเลขฝั่ง Register
+        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
+            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้งานต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น และมีความยาวอย่างน้อย 6 ตัว'], 400);
+        }
+        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $password)) {
+            auth_json(['success' => false, 'message' => 'รหัสผ่านต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น และมีความยาวอย่างน้อย 6 ตัว'], 400);
+        }
+        if (!is_english_or_digit($dormCode)) {
+            auth_json(['success' => false, 'message' => 'โค้ดหอพักต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น'], 400);
         }
 
         $conn->begin_transaction();
         try {
             $dorm = find_dorm_by_code($conn, $dormCode);
             if (!$dorm) throw new Exception('ไม่พบโค้ดหอพักนี้');
-            
+            $dormId = (int)$dorm['dorm_id'];
+
             $stmtCheck = $conn->prepare('SELECT user_id FROM rh_users WHERE username=? LIMIT 1');
             $stmtCheck->bind_param('s', $username); $stmtCheck->execute();
             if ($stmtCheck->get_result()->fetch_assoc()) throw new Exception('Username นี้ถูกใช้งานแล้ว');
@@ -256,60 +323,49 @@ try {
             $userId = (int)$conn->insert_id; $stmt->close();
 
             $stmt2 = $conn->prepare("INSERT INTO rh_dorm_memberships (user_id, dorm_id, role_code, approve_status) VALUES (?, ?, 't', 'pending')");
-            $stmt2->bind_param('ii', $userId, $dorm['dorm_id']); $stmt2->execute(); $stmt2->close();
+            $stmt2->bind_param('ii', $userId, $dormId); $stmt2->execute(); $stmt2->close();
+
+            $stmtNoti = $conn->prepare('INSERT INTO rh_notifications (user_id, dorm_id, type_id, message) VALUES (?, ?, 1, ?)');
+            $msg = 'มีผู้ขอเข้าร่วมหอพัก: ' . $fullName;
+            $stmtNoti->bind_param('iis', $userId, $dormId, $msg); $stmtNoti->execute(); $stmtNoti->close();
 
             $conn->commit();
-            auth_json(['success' => true, 'user_id' => $userId, 'dorm_name' => $dorm['dorm_name']]);
+            auth_json(['success' => true, 'user_id' => $userId, 'dorm_id' => $dormId, 'dorm_name' => $dorm['dorm_name']]);
         } catch (Throwable $e) { $conn->rollback(); auth_json(['success' => false, 'message' => $e->getMessage()], 500); }
     }
 
-    // 3. ล็อกอิน
-    if ($action === 'login') {
-        $username = trim((string)($data['username'] ?? ''));
-        $password = (string)($data['password'] ?? '');
-        if ($username === '' || $password === '') auth_json(['success' => false, 'message' => 'กรอกข้อมูลไม่ครบ'], 400);
-
-        $stmt = $conn->prepare('SELECT user_id, password, user_level FROM rh_users WHERE username=? OR phone=? LIMIT 1');
-        $stmt->bind_param('ss', $username, $username);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$user || !password_verify($password, (string)$user['password'])) {
-            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'], 401);
-        }
-
-        auth_json(['success' => true, 'user' => load_profile_payload($conn, (int)$user['user_id'])]);
-    }
-
-    // 4. ลืมรหัสผ่าน
     if ($action === 'forgot_password') {
         $username = trim((string)($data['username'] ?? ''));
         $dormCode = trim((string)($data['dorm_code'] ?? ''));
         $phone = trim((string)($data['phone'] ?? ''));
         $newPassword = trim((string)($data['new_password'] ?? ''));
 
-        // ตรวจสอบภาษาอังกฤษ/เลข สำหรับ Password ใหม่ และ Dorm Code
+        // 🛑 ตรวจสอบภาษาอังกฤษ/ตัวเลขฝั่งลืมรหัสผ่าน
         if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $newPassword)) {
             auth_json(['success' => false, 'message' => 'รหัสผ่านใหม่ต้องเป็นภาษาอังกฤษหรือตัวเลข และมีความยาวอย่างน้อย 6 ตัว'], 400);
         }
-        if (!preg_match('/^[a-zA-Z0-9]+$/', $dormCode)) {
+        if (!is_english_or_digit($dormCode)) {
             auth_json(['success' => false, 'message' => 'โค้ดหอพักต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น'], 400);
         }
 
         $conn->begin_transaction();
         try {
             $stmt = $conn->prepare('
-                SELECT u.user_id FROM rh_users u 
+                SELECT u.user_id 
+                FROM rh_users u 
                 JOIN rh_dorm_memberships m ON m.user_id = u.user_id 
                 JOIN rh_dorms d ON d.dorm_id = m.dorm_id 
-                WHERE u.username = ? AND u.phone = ? AND d.dorm_code = ? 
+                WHERE u.username = ? 
+                  AND u.phone = ? 
+                  AND d.dorm_code = ? 
+                  AND m.approve_status = "approved" 
+                  AND m.move_out_date IS NULL 
                 LIMIT 1
             ');
             $stmt->bind_param('sss', $username, $phone, $dormCode); $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc(); $stmt->close();
 
-            if (!$row) throw new Exception('ข้อมูลยืนยันตัวตนไม่ถูกต้อง');
+            if (!$row) throw new Exception('ข้อมูลไม่ถูกต้อง');
 
             $hash = password_hash($newPassword, PASSWORD_DEFAULT);
             $upd = $conn->prepare('UPDATE rh_users SET password = ? WHERE user_id = ?');
@@ -320,12 +376,20 @@ try {
         } catch (Throwable $e) { $conn->rollback(); auth_json(['success' => false, 'message' => $e->getMessage()], 500); }
     }
 
-    // อื่นๆ
+    if (in_array($action, ['check_status', 'get', 'profile'], true)) {
+        $userId = (int)($data['user_id'] ?? $data['userId'] ?? 0);
+        if ($userId <= 0) auth_json(['success' => false, 'message' => 'missing user_id'], 400);
+        $profile = load_profile_payload($conn, $userId);
+        if ($profile['tenant_status'] === 'former') auth_json(['success' => false, 'message' => 'พ้นสภาพการใช้งาน'], 403);
+        auth_json(['success' => true, 'data' => $profile, 'user' => $profile]);
+    }
+
     if ($action === 'change_password') {
         $userId = (int)($data['user_id'] ?? $data['userId'] ?? 0);
-        $old = (string)($data['old_password'] ?? '');
-        $new = (string)($data['new_password'] ?? '');
-
+        $old = trim((string)($data['old_password'] ?? ''));
+        $new = trim((string)($data['new_password'] ?? ''));
+        
+        // 🛑 ตรวจสอบภาษาอังกฤษ/ตัวเลขสำหรับรหัสผ่านใหม่
         if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $new)) {
             auth_json(['success' => false, 'message' => 'รหัสผ่านใหม่ต้องเป็นภาษาอังกฤษหรือตัวเลข และมีความยาวอย่างน้อย 6 ตัว'], 400);
         }
@@ -333,11 +397,26 @@ try {
         $stmt = $conn->prepare('SELECT password FROM rh_users WHERE user_id=? LIMIT 1');
         $stmt->bind_param('i', $userId); $stmt->execute(); $u = $stmt->get_result()->fetch_assoc(); $stmt->close();
         if (!$u || !password_verify($old, $u['password'])) auth_json(['success' => false, 'message' => 'รหัสผ่านเดิมไม่ถูกต้อง'], 401);
-        
         $hash = password_hash($new, PASSWORD_DEFAULT);
         $stmt = $conn->prepare('UPDATE rh_users SET password=? WHERE user_id=?');
         $stmt->bind_param('si', $hash, $userId); $stmt->execute(); $stmt->close();
         auth_json(['success' => true, 'message' => 'เปลี่ยนรหัสผ่านสำเร็จ']);
+    }
+
+    if ($action === 'update') {
+        $userId = (int)($data['user_id'] ?? $data['userId'] ?? 0);
+        $username = trim((string)($data['username'] ?? ''));
+        $fullName = trim((string)($data['full_name'] ?? ''));
+        $phone = trim((string)($data['phone'] ?? ''));
+
+        // 🛑 ตรวจสอบภาษาอังกฤษ/ตัวเลขสำหรับหน้าอัปเดตโปรไฟล์
+        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
+            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้งานต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น และมีความยาวอย่างน้อย 6 ตัว'], 400);
+        }
+
+        $stmt = $conn->prepare('UPDATE rh_users SET username=?, full_name=?, phone=? WHERE user_id=?');
+        $stmt->bind_param('sssi', $username, $fullName, $phone, $userId); $stmt->execute(); $stmt->close();
+        auth_json(['success' => true, 'data' => load_profile_payload($conn, $userId)]);
     }
 
     auth_json(['success' => false, 'message' => 'Unknown action'], 400);
