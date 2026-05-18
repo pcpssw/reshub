@@ -703,7 +703,7 @@ class _RegisterPageState extends State<RegisterPage> {
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
         helperText: (label == "รหัสผ่าน")
-            ? "8 ตัวขึ้นไป (ภาษาอังกฤษและตัวเลข)"
+            ? "6 ตัวขึ้นไป (ภาษาอังกฤษและตัวเลข)"
             : null,
         helperStyle: const TextStyle(fontSize: 9, color: cBrown),
         prefixIcon: Icon(icon, color: cBrown, size: 18),
@@ -751,7 +751,7 @@ class _RegisterPageState extends State<RegisterPage> {
         if (label == "เบอร์โทร" && val.length < 10) return "กรุณากรอกเบอร์โทรให้ครบ 10 หลัก";
 
         if (label == "รหัสผ่าน") {
-          if (val.length < 8) return "อย่างน้อย 8 ตัวอักษร";
+          if (val.length < 6) return "อย่างน้อย 6 ตัวอักษร";
           if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(val)) {
             return "ภาษาอังกฤษหรือตัวเลขเท่านั้น";
           }

@@ -100,7 +100,6 @@ function find_dorm_by_code(mysqli $conn, string $dormCode): ?array {
     return $dorm ?: null;
 }
 
-// ✨ ฟังก์ชันโหลดข้อมูลผู้เช่าและโปรไฟล์ตัวเดิมที่สมบูรณ์แบบ ข้อมูลไม่หายแน่นอน ✨
 function load_profile_payload(mysqli $conn, int $userId): array {
     $stmt = $conn->prepare('SELECT user_id, username, full_name, phone, user_level FROM rh_users WHERE user_id=? LIMIT 1');
     $stmt->bind_param('i', $userId);
@@ -222,7 +221,6 @@ function load_profile_payload(mysqli $conn, int $userId): array {
     ];
 }
 
-// ฟังก์ชันช่วยเช็คภาษาอังกฤษหรือตัวเลข
 function is_english_or_digit(string $value): bool {
     return preg_match('/^[a-zA-Z0-9]+$/', $value);
 }
@@ -241,8 +239,7 @@ try {
         $dormCode = trim((string)($data['dorm_code'] ?? ''));
         if ($dormCode === '') auth_json(['success' => false, 'message' => 'กรุณากรอกโค้ดหอพัก'], 400);
         
-        // 🛑 ตรวจสอบโค้ดหอพัก ต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น
-        if (!is_english_or_digit($dormCode)) {
+        if (!is_english_or_digit($dormCode)) { 
             auth_json(['success' => false, 'message' => 'โค้ดหอพักต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น'], 400);
         }
 
@@ -295,7 +292,6 @@ try {
             auth_json(['success' => false, 'message' => 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก'], 400);
         }
 
-        // 🛑 ตรวจสอบความปลอดภัยภาษาอังกฤษ/ตัวเลขฝั่ง Register
         if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
             auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้งานต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น และมีความยาวอย่างน้อย 6 ตัว'], 400);
         }
@@ -340,7 +336,6 @@ try {
         $phone = trim((string)($data['phone'] ?? ''));
         $newPassword = trim((string)($data['new_password'] ?? ''));
 
-        // 🛑 ตรวจสอบภาษาอังกฤษ/ตัวเลขฝั่งลืมรหัสผ่าน
         if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $newPassword)) {
             auth_json(['success' => false, 'message' => 'รหัสผ่านใหม่ต้องเป็นภาษาอังกฤษหรือตัวเลข และมีความยาวอย่างน้อย 6 ตัว'], 400);
         }
@@ -389,9 +384,12 @@ try {
         $old = trim((string)($data['old_password'] ?? ''));
         $new = trim((string)($data['new_password'] ?? ''));
         
-        // 🛑 ตรวจสอบภาษาอังกฤษ/ตัวเลขสำหรับรหัสผ่านใหม่
-        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $new)) {
-            auth_json(['success' => false, 'message' => 'รหัสผ่านใหม่ต้องเป็นภาษาอังกฤษหรือตัวเลข และมีความยาวอย่างน้อย 6 ตัว'], 400);
+        // 🛠️ ปรับปรุงแก้ไข: บล็อกภาษาไทย และ ตรวจความยาวต้องได้อย่างน้อย 6 ตัวอักษรขึ้นไป
+        if (preg_match('/[ก-๙]/u', $new)) {
+            auth_json(['success' => false, 'message' => 'รหัสผ่านใหม่ต้องไม่ใช้ภาษาไทย'], 400);
+        }
+        if (mb_strlen($new, 'utf8') < 6) {
+            auth_json(['success' => false, 'message' => 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร'], 400);
         }
 
         $stmt = $conn->prepare('SELECT password FROM rh_users WHERE user_id=? LIMIT 1');
@@ -409,9 +407,12 @@ try {
         $fullName = trim((string)($data['full_name'] ?? ''));
         $phone = trim((string)($data['phone'] ?? ''));
 
-        // 🛑 ตรวจสอบภาษาอังกฤษ/ตัวเลขสำหรับหน้าอัปเดตโปรไฟล์
-        if (!preg_match('/^[a-zA-Z0-9]{6,}$/', $username)) {
-            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้งานต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น และมีความยาวอย่างน้อย 6 ตัว'], 400);
+        // 🛠️ ปรับปรุงแก้ไข: บล็อกภาษาไทย และ ตรวจความยาวต้องได้อย่างน้อย 6 ตัวอักษรขึ้นไป
+        if (preg_match('/[ก-๙]/u', $username)) {
+            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้งานต้องไม่ใช้ภาษาไทย'], 400);
+        }
+        if (mb_strlen($username, 'utf8') < 6) {
+            auth_json(['success' => false, 'message' => 'ชื่อผู้ใช้งานต้องมีความยาวอย่างน้อย 6 ตัวอักษร'], 400);
         }
 
         $stmt = $conn->prepare('UPDATE rh_users SET username=?, full_name=?, phone=? WHERE user_id=?');

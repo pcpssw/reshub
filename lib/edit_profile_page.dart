@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // สำหรับการจำกัด Format การพิมพ์
+import 'package:flutter/services.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
@@ -45,6 +45,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool _obNew = true;
   bool _obConfirm = true;
 
+  // 🔴 ตัวแปรสำหรับควบคุมการเปิดเผยสีแดงแจ้งเตือนทันทีหลังกดปุ่ม
+  AutovalidateMode _profileAutovalidateMode = AutovalidateMode.disabled;
+  AutovalidateMode _passwordAutovalidateMode = AutovalidateMode.disabled;
+
+  // 🔴 ตัวแปรสำหรับสลักข้อความแจ้งเตือนสีแดงลงใต้กล่องข้อความแต่ละช่อง
+  String? _usernameError;
+  String? _fullNameError;
+  String? _phoneError;
+  String? _oldPassError;
+  String? _newPassError;
+
   @override
   void initState() {
     super.initState();
@@ -79,8 +90,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
+  // ✨ ล้างข้อความเตือนสีแดงเก่าทิ้งเมื่อเริ่มทำรายการใหม่
+  void _clearValidationErrors() {
+    setState(() {
+      _usernameError = null;
+      _fullNameError = null;
+      _phoneError = null;
+      _oldPassError = null;
+      _newPassError = null;
+    });
+  }
+
   Future<void> _saveProfile() async {
-    if (!_profileFormKey.currentState!.validate()) return;
+    _clearValidationErrors();
+    
+    if (!_profileFormKey.currentState!.validate()) {
+      setState(() {
+        _profileAutovalidateMode = AutovalidateMode.onUserInteraction;
+      });
+      return;
+    }
     
     setState(() => _isSaving = true);
     try {
@@ -108,7 +137,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
         await prefs.setString("phone", phoneCtrl.text.trim());
         if (mounted) Navigator.of(context).pop({"ok": true});
       } else {
-        _toast(data["message"] ?? "บันทึกไม่สำเร็จ");
+        final String msg = data["message"] ?? "ข้อมูลไม่ถูกต้อง";
+        
+        setState(() {
+          if (msg.contains("ภาษาไทย") || msg.contains("ชื่อผู้ใช้") || msg.contains("Username") || msg.contains("6 ตัว")) {
+            _usernameError = msg;
+          } else if (msg.contains("ชื่อ-นามสกุล") || msg.contains("นามสกุล") || msg.contains("กรอกชื่อ")) {
+            _fullNameError = msg;
+          } else if (msg.contains("เบอร์") || msg.contains("โทรศัพท์") || msg.contains("phone")) {
+            _phoneError = msg;
+          } else {
+            _usernameError = msg;
+          }
+          _profileAutovalidateMode = AutovalidateMode.onUserInteraction;
+        });
       }
     } catch (e) {
       _toast("เชื่อมต่อล้มเหลว กรุณาลองใหม่");
@@ -118,7 +160,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _changePassword() async {
-    if (!_passwordFormKey.currentState!.validate()) return;
+    _clearValidationErrors();
+    
+    if (!_passwordFormKey.currentState!.validate()) {
+      setState(() {
+        _passwordAutovalidateMode = AutovalidateMode.onUserInteraction;
+      });
+      return;
+    }
 
     setState(() => _isChangingPass = true);
     try {
@@ -141,9 +190,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final data = jsonDecode(res.body);
       if (data["success"] == true) {
         oldPassCtrl.clear(); newPassCtrl.clear(); confirmPassCtrl.clear();
-        _toast("เปลี่ยนรหัสผ่านสำเร็จ ✅");
+        setState(() {
+          _passwordAutovalidateMode = AutovalidateMode.disabled; 
+        });
+        _toast("เปลี่ยนรหัสผ่านสำเร็จ"); 
       } else {
-        _toast(data["message"] ?? "เปลี่ยนไม่สำเร็จ");
+        final String msg = data["message"] ?? "ข้อมูลไม่ถูกต้อง";
+        
+        setState(() {
+          if (msg.contains("เดิม") || msg.contains("เก่า") || msg.contains("ไม่ถูกต้อง")) {
+            _oldPassError = msg;
+          } else if (msg.contains("ภาษาไทย") || msg.contains("รหัสผ่านใหม่") || msg.contains("6 ตัว")) {
+            _newPassError = msg;
+          } else {
+            _newPassError = msg;
+          }
+          _passwordAutovalidateMode = AutovalidateMode.onUserInteraction;
+        });
       }
     } catch (e) {
       _toast("เชื่อมต่อล้มเหลว");
@@ -173,20 +236,37 @@ class _EditProfilePageState extends State<EditProfilePage> {
           children: [
             Form(
               key: _profileFormKey,
+              autovalidateMode: _profileAutovalidateMode, 
               child: _buildSectionCard(
                 title: "ข้อมูลส่วนตัว",
                 icon: Icons.person_outline_rounded,
                 children: [
                   _buildInput(
-                    usernameCtrl, "Username", Icons.alternate_email, 
-                    (v) => (v == null || v.isEmpty) ? "กรุณากรอก Username" : null,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-                    ],
+                    usernameCtrl, "ชื่อผู้ใช้งาน", Icons.alternate_email, 
+                    (v) {
+                      final val = v?.trim() ?? "";
+                      if (val.isEmpty) return "กรุณากรอกชื่อผู้ใช้งาน";
+                      
+                      // 🛠️ เช็คห้ามมีภาษาไทย
+                      if (RegExp(r'[ก-๙]').hasMatch(val)) {
+                        return "ชื่อผู้ใช้งานต้องไม่ใช้ภาษาไทย";
+                      }
+                      // 🛠️ เช็คความยาวต้องอย่างน้อย 6 ตัวอักษรขึ้นไป
+                      if (val.length < 6) {
+                        return "ชื่อผู้ใช้งานต้องมีความยาวอย่างน้อย 6 ตัวอักษร";
+                      }
+                      return null;
+                    },
+                    errorText: _usernameError,
+                    onChanged: (v) { if (_usernameError != null) setState(() => _usernameError = null); },
                   ),
                   
-                  _buildInput(fullNameCtrl, "ชื่อ-นามสกุล", Icons.badge_outlined, 
-                    (v) => (v == null || v.isEmpty) ? "กรุณากรอกชื่อ-นามสกุล" : null),
+                  _buildInput(
+                    fullNameCtrl, "ชื่อ-นามสกุล", Icons.badge_outlined, 
+                    (v) => (v == null || v.isEmpty) ? "กรุณากรอกชื่อ-นามสกุล" : null,
+                    errorText: _fullNameError,
+                    onChanged: (v) { if (_fullNameError != null) setState(() => _fullNameError = null); },
+                  ),
                   
                   _buildInput(
                     phoneCtrl, "เบอร์โทรศัพท์", Icons.phone_android_rounded, 
@@ -195,6 +275,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       if (v.length < 10) return "เบอร์โทรศัพท์ต้องมี 10 หลัก";
                       return null;
                     }, 
+                    errorText: _phoneError,
+                    onChanged: (v) { if (_phoneError != null) setState(() => _phoneError = null); },
                     keyboard: TextInputType.phone,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
@@ -209,6 +291,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             const SizedBox(height: 20),
             Form(
               key: _passwordFormKey,
+              autovalidateMode: _passwordAutovalidateMode, 
               child: _buildSectionCard(
                 title: "เปลี่ยนรหัสผ่าน",
                 icon: Icons.shield_outlined,
@@ -216,17 +299,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   _buildPasswordInput(
                     oldPassCtrl, "รหัสผ่านเดิม", _obOld, 
                     () => setState(() => _obOld = !_obOld), 
-                    (v) => (v == null || v.isEmpty) ? "กรุณากรอกรหัสผ่านเดิม" : null
+                    (v) => (v == null || v.isEmpty) ? "กรุณากรอกรหัสผ่านเดิม" : null,
+                    errorText: _oldPassError,
+                    onChanged: (v) { if (_oldPassError != null) setState(() => _oldPassError = null); },
                   ),
                   _buildPasswordInput(
                     newPassCtrl, "รหัสผ่านใหม่", _obNew, 
                     () => setState(() => _obNew = !_obNew), 
                     (v) {
-                      if (v == null || v.isEmpty) return "กรุณากรอกรหัสผ่านใหม่";
-                      if (v.length < 8) return "รหัสต้องมีความยาวอย่างน้อย 8 ตัวอักษร";
-                      if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(v)) return "อังกฤษหรือตัวเลขเท่านั้น";
+                      final val = v?.trim() ?? "";
+                      if (val.isEmpty) return "กรุณากรอกรหัสผ่านใหม่";
+                      
+                      // 🛠️ เช็คห้ามมีภาษาไทย
+                      if (RegExp(r'[ก-๙]').hasMatch(val)) {
+                        return "รหัสผ่านใหม่ต้องไม่ใช้ภาษาไทย";
+                      }
+                      // 🛠️ เช็คความยาวต้องอย่างน้อย 6 ตัวอักษรขึ้นไป
+                      if (val.length < 6) {
+                        return "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร";
+                      }
                       return null;
-                    }
+                    },
+                    errorText: _newPassError,
+                    onChanged: (v) { if (_newPassError != null) setState(() => _newPassError = null); },
                   ),
                   _buildPasswordInput(
                     confirmPassCtrl, "ยืนยันรหัสผ่านใหม่", _obConfirm, 
@@ -281,6 +376,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     String? Function(String?)? validator, {
     TextInputType keyboard = TextInputType.text,
     List<TextInputFormatter>? inputFormatters, 
+    String? errorText,
+    ValueChanged<String>? onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -289,8 +386,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
         validator: validator, 
         keyboardType: keyboard,
         inputFormatters: inputFormatters,
+        onChanged: (v) {
+          onChanged?.call(v);
+          if (_profileAutovalidateMode != AutovalidateMode.disabled) {
+            setState(() {});
+          }
+        },
         style: const TextStyle(fontSize: 14, color: cTextMain, fontWeight: FontWeight.w600),
-        decoration: _inputDec(label, icon),
+        decoration: _inputDec(label, icon, errorText: errorText),
       ),
     );
   }
@@ -300,20 +403,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
     String label, 
     bool ob, 
     VoidCallback toggle, 
-    String? Function(String?)? validator
-  ) {
+    String? Function(String?)? validator, {
+    String? errorText,
+    ValueChanged<String>? onChanged,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: c,
         obscureText: ob,
         validator: validator,
-        // เพิ่ม inputFormatters เพื่อบล็อกภาษาไทยในช่องรหัสผ่าน
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-        ],
+        onChanged: (v) {
+          onChanged?.call(v);
+          if (_passwordAutovalidateMode != AutovalidateMode.disabled) {
+            setState(() {});
+          }
+        },
         style: const TextStyle(fontSize: 14, color: cTextMain, fontWeight: FontWeight.w600),
-        decoration: _inputDec(label, Icons.lock_outline_rounded).copyWith(
+        decoration: _inputDec(label, Icons.lock_outline_rounded, errorText: errorText).copyWith(
           suffixIcon: IconButton(
             icon: Icon(ob ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20, color: cDark), 
             onPressed: toggle
@@ -323,20 +430,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  InputDecoration _inputDec(String label, IconData icon) {
+  InputDecoration _inputDec(String label, IconData icon, {String? errorText}) {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: Color(0xFF757575), fontSize: 13, fontWeight: FontWeight.w600),
       prefixIcon: Icon(icon, size: 20, color: cDark),
-      isDense: true,
+      isDense: false, 
       filled: true,
       fillColor: cBg.withOpacity(0.4),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-      errorStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent, fontSize: 11),
+      errorText: errorText, 
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: cAccent)),
+      errorStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent, fontSize: 12),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: cAccent.withOpacity(0.5))),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: cDark, width: 1.5)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.redAccent, width: 1)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.redAccent, width: 1.2)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.redAccent, width: 1.8)),
     );
   }
 
