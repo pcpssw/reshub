@@ -224,7 +224,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       children: [
                         _popupInfoRow("ชื่อ-นามสกุล", fullNameCtrl.text.trim()),
                         const SizedBox(height: 10),
-                        _popupInfoRow("เบอร์โทรศัพท์โทร", phoneCtrl.text.trim()),
+                        _popupInfoRow("เบอร์โทรศัพท์", phoneCtrl.text.trim()),
                         const SizedBox(height: 10),
                         _popupInfoRow("Username", userCtrl.text.trim()),
                         const SizedBox(height: 10),
