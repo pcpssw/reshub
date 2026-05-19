@@ -8,7 +8,7 @@ class RepairModel {
   final String image;
   final String createdAt;
   final String fullName;  // ชื่อผู้แจ้ง (สำหรับ Admin)
-  final String phone;     // เบอร์โทร (สำหรับ Admin)
+  final String phone;     // เบอร์โทรศัพท์โทร (สำหรับ Admin)
 
   RepairModel({
     required this.repairId,

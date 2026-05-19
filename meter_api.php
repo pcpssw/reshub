@@ -48,6 +48,13 @@ $year    = (int)param("year", (int)date("Y"));
 
 if ($dorm_id <= 0) fail("ไม่พบ dorm_id");
 
+// คำนวณหาเดือนก่อนหน้าและปีของเดือนก่อนหน้า (สำหรับใช้ทั้งตอน GET และ SAVE)
+$dateObj = new DateTime("$year-$month-01");
+$dateObj->modify('-1 month');
+$prev_month = (int)$dateObj->format('n');
+$prev_year  = (int)$dateObj->format('Y');
+
+
 // --- 1. ACTION: GET ---
 if ($action === "get") {
     try {
@@ -60,14 +67,14 @@ if ($action === "get") {
                 COALESCE((
                     SELECT water_new FROM rh_meter 
                     WHERE room_id = r.room_id 
-                    AND NOT (month = ? AND year = ?)
-                    ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1
+                    AND month = ? AND year = ?
+                    LIMIT 1
                 ), 0) AS prev_w,
                 COALESCE((
                     SELECT elec_new FROM rh_meter 
                     WHERE room_id = r.room_id 
-                    AND NOT (month = ? AND year = ?)
-                    ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1
+                    AND month = ? AND year = ?
+                    LIMIT 1
                 ), 0) AS prev_e,
                 COALESCE(cm.water_new, 0) AS cur_w,
                 COALESCE(cm.elec_new, 0) AS cur_e
@@ -83,7 +90,8 @@ if ($action === "get") {
             ORDER BY b.building_name, r.room_number
         ";
         $st = $conn->prepare($sql);
-        $st->bind_param("iiiiiii", $month, $year, $month, $year, $month, $year, $dorm_id);
+        // ส่ง $prev_month และ $prev_year เข้าไปค้นหามิเตอร์ครั้งก่อนหน้าให้ตรงตัว
+        $st->bind_param("iiiiiii", $prev_month, $prev_year, $prev_month, $prev_year, $month, $year, $dorm_id);
         $st->execute();
         $rs = $st->get_result();
         $rooms = [];
@@ -121,8 +129,9 @@ elseif ($action === "save") {
             $tid_row = $stTenant->get_result()->fetch_assoc();
             $tid = !empty($tid_row['tenant_id']) ? (int)$tid_row['tenant_id'] : 0;
 
-            $stPrev = $conn->prepare("SELECT water_new, elec_new FROM rh_meter WHERE room_id=? AND NOT (month=? AND year=?) ORDER BY year DESC, month DESC, reading_id DESC LIMIT 1");
-            $stPrev->bind_param("iii", $room_id, $month, $year);
+            // แก้ไขจุดนี้: ให้หาค่ามิเตอร์เก่าจากเดือนก่อนหน้า ($prev_month, $prev_year) ที่ถูกต้องแบบเจาะจง
+            $stPrev = $conn->prepare("SELECT water_new, elec_new FROM rh_meter WHERE room_id=? AND month=? AND year=? LIMIT 1");
+            $stPrev->bind_param("iii", $room_id, $prev_month, $prev_year);
             $stPrev->execute();
             $prev = $stPrev->get_result()->fetch_assoc();
             

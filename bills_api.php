@@ -277,7 +277,6 @@ function handle_generic_upload(mysqli $conn): void {
     ]);
 }
 
-// --- [จุดแก้ไขหลัก] ดึง action และทำการ map เส้นทางให้ get_bill_detail ---
 $action = trim((string)reqv('action', ''));
 if ($action === '' && isset($_FILES['image'])) {
     $action = 'upload';
@@ -294,7 +293,6 @@ if ($action === 'get_bill_detail') {
         $action = 'get';
     }
 }
-// --- [สิ้นสุดจุดแก้ไขหลัก] ---
 
 $hasSlipColumn = has_column($conn, 'rh_payments', 'slip_image');
 $hasPaymentDateColumn = has_column($conn, 'rh_payments', 'payment_date');
@@ -303,6 +301,7 @@ if ($action === 'upload') {
     handle_generic_upload($conn);
 }
 
+// --- 🛠️ ล็อคคิวรีตรงเดือนใน ACTION: GET ---
 if ($action === 'get') {
     $user_id = intval(reqv('user_id', 0));
     $month   = intval(reqv('month', 0));
@@ -331,28 +330,29 @@ if ($action === 'get') {
     $stB->close();
 
     $selectSlip = $hasSlipColumn ? 'p.slip_image,' : 'NULL AS slip_image,';
+    
+    // ล็อคเงื่อนไข WHERE month และ year ตรงๆ ไม่ดึงสุ่มข้ามเดือนแล้ว
     $sql = "SELECT
-                p.payment_id,
-                p.user_id,
-                p.room_id,
-                p.total_amount,
-                p.status,
+                p.payment_id, p.user_id, p.dorm_id, p.room_id, p.total_amount, p.status, p.month, p.year,
                 $selectSlip
                 COALESCE(met.water_old, 0) AS water_old,
                 COALESCE(met.water_new, 0) AS water_new,
                 COALESCE(met.elec_old, 0) AS elec_old,
                 COALESCE(met.elec_new, 0) AS elec_new,
-                COALESCE(s.water_rate, 0) AS water_rate,
-                COALESCE(s.electric_rate, 0) AS electric_rate
+                r.base_rent,
+                u.full_name,
+                b.building_name
             FROM rh_payments p
+            LEFT JOIN rh_rooms r ON r.room_id = p.room_id
+            LEFT JOIN rh_buildings b ON b.building_id = r.building_id
+            LEFT JOIN rh_users u ON u.user_id = p.user_id
             LEFT JOIN rh_meter met ON met.room_id = p.room_id AND met.month = p.month AND met.year = p.year AND met.user_id = p.user_id
-            LEFT JOIN rh_dorm_settings s ON s.dorm_id = p.dorm_id
             WHERE p.month = ?
               AND p.year = ?
               AND p.room_id = ?
               AND p.user_id = ?
-            ORDER BY p.payment_id DESC
             LIMIT 1";
+            
     $st = $conn->prepare($sql);
     $st->bind_param('iiii', $month, $year, $room_id, $user_id);
     $st->execute();
@@ -366,10 +366,13 @@ if ($action === 'get') {
         ]);
     }
 
-    $waterUnit = max(0, (float)$p['water_new'] - (float)$p['water_old']);
-    $elecUnit = max(0, (float)$p['elec_new'] - (float)$p['elec_old']);
+    $parts = calc_bill_parts(
+        $p['base_rent'] ?? 0,
+        $p['water_old'], $p['water_new'], $p['elec_old'], $p['elec_new'],
+        $settings['water_rate'], $settings['electric_rate']
+    );
+
     $slip_image = !empty($p['slip_image']) ? $p['slip_image'] : get_slip_path_for_payment((int)$p['payment_id']);
-    
     $stt = map_status($p['status'], $month, $year, true, $settings['billing_day']);
     $uiStatus = $stt['key'];
     
@@ -377,38 +380,30 @@ if ($action === 'get') {
         $uiStatus = 'pending';
     }
 
-    if ($uiStatus === 'overdue') {
-        $pid = (int)$p['payment_id'];
-        $chkNoti = $conn->prepare("SELECT notification_id FROM rh_notifications WHERE user_id = ? AND ref_id = ? AND message LIKE '%เลยกำหนดชำระ%'");
-        $chkNoti->bind_param('ii', $user_id, $pid);
-        $chkNoti->execute();
-        $hasNoti = $chkNoti->get_result()->fetch_assoc();
-        $chkNoti->close();
-
-        if (!$hasNoti) {
-            $msg = "บิลค่าเช่าเดือน " . sprintf('%02d/%04d', $month, $year) . " เลยกำหนดชำระแล้ว ยอด " . number_format((float)$p['total_amount'], 2) . " บาท กรุณาชำระเงินโดยด่วน";
-            $type_id = 2; 
-            $insNoti = $conn->prepare("INSERT INTO rh_notifications (user_id, dorm_id, type_id, ref_id, message, is_read) VALUES (?, ?, ?, ?, ?, 0)");
-            $insNoti->bind_param('iiiis', $user_id, $dorm_id, $type_id, $pid, $msg);
-            $insNoti->execute();
-            $insNoti->close();
-        }
-    }
-
     jok([
         'data' => [
-            'payment_id'     => (int)$p['payment_id'],
-            'room_number'    => $room_number,
-            'water_unit'     => $waterUnit,
-            'water_rate'     => (float)$p['water_rate'],
-            'water_price'    => $waterUnit * (float)$p['water_rate'],
-            'electric_unit'  => $elecUnit,
-            'electric_rate'  => (float)$p['electric_rate'],
-            'electric_price' => $elecUnit * (float)$p['electric_rate'],
-            'total_price'    => (float)$p['total_amount'],
-            'status'         => $uiStatus,
-            'slip_image'     => $slip_image,
-            'accounts'       => $accounts,
+            'payment_id'           => (int)$p['payment_id'],
+            'room_id'              => (int)$p['room_id'],
+            'dorm_id'              => (int)$p['dorm_id'],
+            'room_number'          => $room_number,
+            'building'             => (string)($p['building_name'] ?? ''),
+            'full_name'            => $p['full_name'] ?? 'ไม่ระบุชื่อ',
+            'month'                => (int)$p['month'],
+            'year'                 => (int)$p['year'],
+            'status_key'           => $uiStatus,
+            'status_label'         => $stt['label'],
+            'status_color'         => $stt['color'],
+            'rent'                 => $parts['rent'],
+            'water_bill'           => $parts['water_bill'],
+            'elec_bill'            => $parts['elec_bill'],
+            'water_unit'           => $parts['water_unit'],
+            'water_price_per_unit' => floatval($settings['water_rate']),
+            'elec_unit'            => $parts['elec_unit'],
+            'elec_price_per_unit'  => floatval($settings['electric_rate']),
+            'common_fee'           => $parts['common_fee'],
+            'total'                => floatval($p['total_amount'] ?? $parts['total']),
+            'slip_image'           => $slip_image,
+            'accounts'             => $accounts,
         ]
     ]);
 }
@@ -457,8 +452,7 @@ if ($action === 'pay') {
         $stU->close();
     } elseif ($hasSlipColumn) {
         $stU = $conn->prepare("UPDATE rh_payments SET slip_image = ?, status = 'pending' WHERE payment_id = ?");
-        $stU->bind_param('si', $payment_id);
-        $stU->execute();
+        $stU->bind_param('si', $pathRel, $payment_id);
         $stU->close();
     } else {
         $stU = $conn->prepare("UPDATE rh_payments SET status = 'pending' WHERE payment_id = ?");
@@ -810,26 +804,6 @@ if ($action === 'list_user_history') {
             $uiStatus = 'pending';
         }
 
-        if ($uiStatus === 'overdue') {
-            $pid = (int)$row['payment_id'];
-            $dorm_id = (int)$row['dorm_id'];
-            
-            $chkNoti = $conn->prepare("SELECT notification_id FROM rh_notifications WHERE user_id = ? AND ref_id = ? AND message LIKE '%เลยกำหนดชำระ%'");
-            $chkNoti->bind_param('ii', $userId, $pid);
-            $chkNoti->execute();
-            $hasNoti = $chkNoti->get_result()->fetch_assoc();
-            $chkNoti->close();
-
-            if (!$hasNoti) {
-                $msg = "บิลค่าเช่าเดือน " . sprintf('%02d/%04d', $row['month'], $row['year']) . " เลยกำหนดชำระแล้ว! ยอด " . number_format((float)$row['total_amount'], 2) . " บาท กรุณาชำระเงินโดยด่วน";
-                $type_id = 2;
-                $insNoti = $conn->prepare("INSERT INTO rh_notifications (user_id, dorm_id, type_id, ref_id, message, is_read) VALUES (?, ?, ?, ?, ?, 0)");
-                $insNoti->bind_param('iiiis', $userId, $dorm_id, $type_id, $pid, $msg);
-                $insNoti->execute();
-                $insNoti->close();
-            }
-        }
-
         $rows[] = [
             'month' => $row['month'],
             'year' => $row['year'],
@@ -898,22 +872,6 @@ if ($action === 'check_overdue') {
 
         if ($uiStatus === 'overdue') {
             $count++;
-            $pid = (int)$row['payment_id'];
-            $dorm_id = (int)$row['dorm_id'];
-
-            $chkNoti = $conn->prepare("SELECT notification_id FROM rh_notifications WHERE user_id = ? AND ref_id = ? AND message LIKE '%เลยกำหนดชำระ%'");
-            $chkNoti->bind_param('ii', $user_id, $pid);
-            $chkNoti->execute();
-            $hasNoti = $chkNoti->get_result()->fetch_assoc();
-            $chkNoti->close();
-
-            if (!$hasNoti) {
-                $msg = "บิลค่าเช่าเดือน " . sprintf('%02d/%04d', $m, $y) . " เลยกำหนดชำระแล้ว! ยอด " . number_format((float)$row['total_amount'], 2) . " บาท กรุณาชำระเงินโดยด่วน";
-                $insNoti = $conn->prepare("INSERT INTO rh_notifications (user_id, dorm_id, type_id, ref_id, message, is_read) VALUES (?, ?, 2, ?, ?, 0)");
-                $insNoti->bind_param('iiis', $user_id, $dorm_id, $pid, $msg);
-                $insNoti->execute();
-                $insNoti->close();
-            }
         }
     }
     $st->close();
@@ -929,42 +887,6 @@ if ($action === 'list') {
     if ($dorm_id <= 0) jfail('ระบุ dorm_id');
 
     $settings = getDormSettings($conn, $dorm_id);
-
-    $currentYear = intval(date('Y'));
-    $currentMonth = intval(date('n'));
-    $currentDay = intval(date('j'));
-    
-    if (
-        ($year < $currentYear) || 
-        ($year === $currentYear && $month < $currentMonth) || 
-        ($year === $currentYear && $month === $currentMonth && $currentDay > intval($settings['billing_day']))
-    ) {
-        $overdueQuery = "SELECT payment_id, user_id, total_amount FROM rh_payments WHERE dorm_id = ? AND month = ? AND year = ? AND status = 'pending' AND (slip_image IS NULL OR slip_image = '')";
-        $stOverdue = $conn->prepare($overdueQuery);
-        $stOverdue->bind_param('iii', $dorm_id, $month, $year);
-        $stOverdue->execute();
-        $resOverdue = $stOverdue->get_result();
-        
-        while ($ovRow = $resOverdue->fetch_assoc()) {
-            $pid = (int)$ovRow['payment_id'];
-            $uid = (int)$ovRow['user_id'];
-            
-            $chkNoti = $conn->prepare("SELECT notification_id FROM rh_notifications WHERE user_id = ? AND ref_id = ? AND message LIKE '%เลยกำหนดชำระ%'");
-            $chkNoti->bind_param('ii', $uid, $pid);
-            $chkNoti->execute();
-            $hasNoti = $chkNoti->get_result()->fetch_assoc();
-            $chkNoti->close();
-
-            if (!$hasNoti && $uid > 0) {
-                $msg = "บิลค่าเช่าเดือน " . sprintf('%02d/%04d', $month, $year) . " เลยกำหนดชำระแล้ว! ยอด " . number_format((float)$ovRow['total_amount'], 2) . " บาท กรุณาชำระเงินโดยด่วน";
-                $insNoti = $conn->prepare("INSERT INTO rh_notifications (user_id, dorm_id, type_id, ref_id, message, is_read) VALUES (?, ?, 2, ?, ?, 0)");
-                $insNoti->bind_param('iiis', $uid, $dorm_id, $pid, $msg);
-                $insNoti->execute();
-                $insNoti->close();
-            }
-        }
-        $stOverdue->close();
-    }
 
     $sql = "SELECT r.room_id, r.dorm_id, r.room_number, r.floor, r.base_rent, r.tenant_id, b.building_name, u.full_name, u.phone, p.payment_id, p.status AS payment_status, p.total_amount, " . ($hasSlipColumn ? 'p.slip_image,' : 'NULL AS slip_image,') . " " . ($hasPaymentDateColumn ? 'p.payment_date,' : 'NULL AS payment_date,') . " m.water_old, m.water_new, m.elec_old, m.elec_new, mem.move_in_date, mem.created_at FROM rh_rooms r LEFT JOIN rh_buildings b ON b.building_id = r.building_id LEFT JOIN rh_users u ON u.user_id = r.tenant_id LEFT JOIN (SELECT user_id, dorm_id, MAX(move_in_date) as move_in_date, MAX(created_at) as created_at FROM rh_dorm_memberships GROUP BY user_id, dorm_id) mem ON mem.user_id = r.tenant_id AND mem.dorm_id = r.dorm_id LEFT JOIN rh_payments p ON p.dorm_id = r.dorm_id AND p.room_id = r.room_id AND p.month = ? AND p.year = ? AND p.user_id = r.tenant_id " . latest_meter_join_sql() . " WHERE r.dorm_id = ? ORDER BY COALESCE(b.building_name, ''), r.floor ASC, r.room_number ASC";
     $stmt = $conn->prepare($sql);

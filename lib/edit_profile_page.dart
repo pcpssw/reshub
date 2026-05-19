@@ -144,7 +144,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             _usernameError = msg;
           } else if (msg.contains("ชื่อ-นามสกุล") || msg.contains("นามสกุล") || msg.contains("กรอกชื่อ")) {
             _fullNameError = msg;
-          } else if (msg.contains("เบอร์") || msg.contains("โทรศัพท์") || msg.contains("phone")) {
+          } else if (msg.contains("เบอร์โทรศัพท์") || msg.contains("โทรศัพท์") || msg.contains("phone")) {
             _phoneError = msg;
           } else {
             _usernameError = msg;
@@ -284,7 +284,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _buildBtn("อัปเดตข้อมูล", _isSaving, _saveProfile),
+                  _buildBtn("บันทึก", _isSaving, _saveProfile),
                 ],
               ),
             ),

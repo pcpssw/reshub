@@ -285,7 +285,7 @@ class _PlatformDormListPageState extends State<PlatformDormListPage> {
         : "ยังไม่ได้กรอกที่อยู่หอพัก";
     final String dormPhone = (d["dorm_phone"] != null && d["dorm_phone"].toString().trim().isNotEmpty) 
         ? d["dorm_phone"].toString() 
-        : "ยังไม่ได้กรอกเบอร์โทรหอพัก";
+        : "ยังไม่ได้กรอกเบอร์โทรศัพท์โทรหอพัก";
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -566,7 +566,7 @@ class _PlatformDormUserSummaryPageState extends State<PlatformDormUserSummaryPag
                 onChanged: (v) => setState(() => _searchQuery = v.trim().toLowerCase()),
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: cTextMain), 
                 decoration: InputDecoration(
-                  hintText: "ค้นหาชื่อ หรือเบอร์โทรผู้ดูแล...",
+                  hintText: "ค้นหาชื่อ หรือเบอร์โทรศัพท์โทรผู้ดูแล...",
                   hintStyle: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.bold), 
                   prefixIcon: const Icon(Icons.search_rounded, size: 20, color: cDark), 
                   filled: true,

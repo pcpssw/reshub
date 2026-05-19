@@ -164,12 +164,11 @@ $user_id = (int)param_api("user_id", 0);
 
 /*
 |--------------------------------------------------------------------------
-| list = รายชื่อผู้เช่า / ผู้ดูแล / ผู้เช่าเก่า
+| list = รายชื่อผู้เช่า / ผู้ดูแล / ผู้เช่าเก่า (ปรับปรุงแก้ปัญหาซ้ำซ้อนตอนย้ายห้อง)
 |--------------------------------------------------------------------------
 */
 if ($action === "list") {
-    $where = "WHERE COALESCE(u.user_level, '') <> 'a'
-              AND (m.approve_status = 'approved' OR m.move_out_date IS NOT NULL)";
+    $where = "WHERE COALESCE(u.user_level, '') <> 'a'";
     $types = '';
     $params = [];
 
@@ -181,22 +180,25 @@ if ($action === "list") {
 
     $sql = "
         SELECT
-            m.membership_id,
+            MAX(m.membership_id) AS membership_id,
             m.user_id AS tenant_id,
             m.user_id,
             m.dorm_id,
-            COALESCE(m.room_id, r2.room_id, 0) AS room_id,
             m.role_code,
             m.approve_status,
             u.username,
             u.full_name,
             u.phone,
             u.user_level,
-            COALESCE(r1.room_number, r2.room_number) AS room_number,
-            COALESCE(r1.floor, r2.floor) AS floor,
-            COALESCE(b1.building_name, b2.building_name, '') AS building,
-            COALESCE(b1.building_name, b2.building_name, '') AS building_name,
             d.dorm_name,
+            
+            -- ค้นหาห้องปัจจุบันที่กำลังพักอยู่จริง ๆ จากตาราง rh_rooms เท่านั้น
+            (SELECT r_curr.room_number FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS room_number,
+            (SELECT r_curr.floor FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS floor,
+            (SELECT b_curr.building_name FROM {$T_ROOMS} r_curr LEFT JOIN {$T_BLD} b_curr ON b_curr.building_id = r_curr.building_id WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS building,
+            (SELECT b_curr.building_name FROM {$T_ROOMS} r_curr LEFT JOIN {$T_BLD} b_curr ON b_curr.building_id = r_curr.building_id WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS building_name,
+            (SELECT r_curr.room_id FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS room_id,
+
             CASE
                 WHEN m.role_code IN ('a', 'o') THEN 'admin'
                 ELSE 'tenant'
@@ -206,57 +208,44 @@ if ($action === "list") {
                 WHEN m.role_code = 'a' THEN 'admin'
                 ELSE 'tenant'
             END AS role_in_dorm,
+            
+            -- วิเคราะห์สถานะจากความจริง: ตราบใดที่มีชื่อครองห้องในตารางห้องพัก = active (ผู้เช่าปัจจุบัน) เสมอ
             CASE
-                WHEN m.move_out_date IS NOT NULL THEN 'former'
-                WHEN m.approve_status = 'approved' THEN 'active'
-                ELSE 'waiting'
+                WHEN m.role_code IN ('a', 'o') THEN 'active'
+                WHEN EXISTS (SELECT 1 FROM {$T_ROOMS} r_chk WHERE r_chk.tenant_id = u.user_id AND r_chk.dorm_id = m.dorm_id) THEN 'active'
+                ELSE 'former'
             END AS tenant_status,
-            CASE
-                WHEN m.move_in_date IS NOT NULL THEN DATE_FORMAT(m.move_in_date, '%Y-%m-%d')
-                ELSE NULL
-            END AS move_in_date,
-            CASE
-                WHEN m.move_out_date IS NOT NULL THEN DATE_FORMAT(m.move_out_date, '%Y-%m-%d')
-                ELSE NULL
-            END AS move_out_date
+            
+            -- มัดรวมประวัติเลขห้องพักทั้งหมดที่เคยอยู่อาศัยในอดีตส่งให้แอปพลิเคชัน
+            (
+                SELECT GROUP_CONCAT(DISTINCT COALESCE(r_hist.room_number, '') ORDER BY sub_m.membership_id ASC SEPARATOR ', ')
+                FROM {$T_MEM} sub_m
+                LEFT JOIN {$T_ROOMS} r_hist ON sub_m.room_id = r_hist.room_id
+                WHERE sub_m.user_id = u.user_id 
+                  AND sub_m.dorm_id = m.dorm_id 
+                  AND sub_m.approve_status = 'approved'
+                  AND sub_m.room_id IS NOT NULL
+            ) AS all_rooms_history,
+
+            MIN(m.move_in_date) AS move_in_date,
+            MAX(m.move_out_date) AS move_out_date
         FROM {$T_MEM} m
-        INNER JOIN {$T_USERS} u
-            ON u.user_id = m.user_id
-        INNER JOIN {$T_DORMS} d
-            ON d.dorm_id = m.dorm_id
-        LEFT JOIN {$T_ROOMS} r1
-            ON r1.room_id = m.room_id
-        LEFT JOIN {$T_BLD} b1
-            ON b1.building_id = r1.building_id
-        LEFT JOIN {$T_ROOMS} r2
-            ON r2.tenant_id = m.user_id
-           AND r2.dorm_id = m.dorm_id
-           AND m.approve_status = 'approved'
-           AND m.move_out_date IS NULL
-        LEFT JOIN {$T_BLD} b2
-            ON b2.building_id = r2.building_id
+        INNER JOIN {$T_USERS} u ON u.user_id = m.user_id
+        INNER JOIN {$T_DORMS} d ON d.dorm_id = m.dorm_id
         {$where}
+        GROUP BY u.user_id, m.dorm_id
         ORDER BY
             CASE
                 WHEN m.role_code IN ('a', 'o') THEN 0
-                WHEN m.move_out_date IS NOT NULL THEN 2
-                ELSE 1
+                WHEN EXISTS (SELECT 1 FROM {$T_ROOMS} r_chk WHERE r_chk.tenant_id = u.user_id AND r_chk.dorm_id = m.dorm_id) THEN 1
+                ELSE 2
             END,
-            COALESCE(b1.building_name, b2.building_name, ''),
-            COALESCE(r1.floor, r2.floor, 0),
-            COALESCE(r1.room_number, r2.room_number, ''),
-            COALESCE(u.full_name, u.username, ''),
-            COALESCE(m.move_in_date, m.created_at) DESC,
-            m.membership_id DESC
+            COALESCE(u.full_name, u.username, '') ASC
     ";
 
     $st = $conn->prepare($sql);
     if (!$st) {
-        jexit_api([
-            'ok' => false,
-            'success' => false,
-            'message' => 'prepare failed: ' . $conn->error
-        ], 500);
+        jexit_api(['ok' => false, 'success' => false, 'message' => 'prepare failed: ' . $conn->error], 500);
     }
 
     if (!empty($params)) {
@@ -299,16 +288,12 @@ if ($action === "list") {
 
 /*
 |--------------------------------------------------------------------------
-| get = รายละเอียดคนเดียว
+| get = รายละเอียดคนเดียว (ปรับปรุงเพิ่มการส่งประวัติเลขห้องพักย้อนหลัง)
 |--------------------------------------------------------------------------
 */
 if ($action === "get") {
     if ($user_id <= 0) {
-        jexit_api([
-            'ok' => false,
-            'success' => false,
-            'message' => 'missing user_id'
-        ], 400);
+        jexit_api(['ok' => false, 'success' => false, 'message' => 'missing user_id'], 400);
     }
 
     $whereDorm = '';
@@ -328,7 +313,7 @@ if ($action === "get") {
             u.full_name,
             u.phone,
             u.user_level,
-            m.membership_id,
+            MAX(m.membership_id) AS membership_id,
             m.dorm_id,
             d.dorm_name,
             m.role_code,
@@ -339,58 +324,40 @@ if ($action === "get") {
                 ELSE 'tenant'
             END AS role_in_dorm,
             CASE
-                WHEN m.move_out_date IS NOT NULL THEN 'former'
-                WHEN m.approve_status = 'approved' THEN 'active'
-                ELSE 'waiting'
+                WHEN m.role_code IN ('a', 'o') THEN 'active'
+                WHEN EXISTS (SELECT 1 FROM {$T_ROOMS} r_chk WHERE r_chk.tenant_id = u.user_id AND r_chk.dorm_id = m.dorm_id) THEN 'active'
+                ELSE 'former'
             END AS tenant_status,
-            COALESCE(b1.building_name, b2.building_name, '') AS building,
-            COALESCE(m.room_id, r2.room_id, 0) AS room_id,
-            COALESCE(r1.room_number, r2.room_number) AS room_number,
-            CASE
-                WHEN m.move_in_date IS NOT NULL THEN DATE_FORMAT(m.move_in_date, '%Y-%m-%d')
-                ELSE NULL
-            END AS move_in_date,
-            CASE
-                WHEN m.move_out_date IS NOT NULL THEN DATE_FORMAT(m.move_out_date, '%Y-%m-%d')
-                ELSE NULL
-            END AS move_out_date
+            
+            (SELECT r_curr.room_number FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS room_number,
+            (SELECT r_curr.room_id FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS room_id,
+            (SELECT b_curr.building_name FROM {$T_ROOMS} r_curr LEFT JOIN {$T_BLD} b_curr ON b_curr.building_id = r_curr.building_id WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS building,
+            
+            (
+                SELECT GROUP_CONCAT(DISTINCT COALESCE(r_hist.room_number, '') ORDER BY sub_m.membership_id ASC SEPARATOR ', ')
+                FROM {$T_MEM} sub_m
+                LEFT JOIN {$T_ROOMS} r_hist ON sub_m.room_id = r_hist.room_id
+                WHERE sub_m.user_id = u.user_id 
+                  AND sub_m.dorm_id = m.dorm_id 
+                  AND sub_m.approve_status = 'approved'
+                  AND sub_m.room_id IS NOT NULL
+            ) AS all_rooms_history,
+            
+            MIN(m.move_in_date) AS move_in_date,
+            MAX(m.move_out_date) AS move_out_date
         FROM {$T_USERS} u
-        LEFT JOIN {$T_MEM} m
-            ON m.user_id = u.user_id
-           AND (m.approve_status = 'approved' OR m.move_out_date IS NOT NULL)
-        LEFT JOIN {$T_DORMS} d
-            ON d.dorm_id = m.dorm_id
-        LEFT JOIN {$T_ROOMS} r1
-            ON r1.room_id = m.room_id
-        LEFT JOIN {$T_BLD} b1
-            ON b1.building_id = r1.building_id
-        LEFT JOIN {$T_ROOMS} r2
-            ON r2.tenant_id = u.user_id
-           AND r2.dorm_id = m.dorm_id
-           AND m.approve_status = 'approved'
-           AND m.move_out_date IS NULL
-        LEFT JOIN {$T_BLD} b2
-            ON b2.building_id = r2.building_id
+        LEFT JOIN {$T_MEM} m ON m.user_id = u.user_id
+        LEFT JOIN {$T_DORMS} d ON d.dorm_id = m.dorm_id
         WHERE u.user_id = ?
           AND COALESCE(u.user_level, '') <> 'a'
         {$whereDorm}
-        ORDER BY
-            CASE
-                WHEN m.move_out_date IS NULL AND m.approve_status = 'approved' THEN 0
-                ELSE 1
-            END,
-            COALESCE(m.move_in_date, m.created_at) DESC,
-            m.membership_id DESC
+        GROUP BY u.user_id, m.dorm_id
         LIMIT 1
     ";
 
     $st = $conn->prepare($sql);
     if (!$st) {
-        jexit_api([
-            'ok' => false,
-            'success' => false,
-            'message' => 'prepare failed: ' . $conn->error
-        ], 500);
+        jexit_api(['ok' => false, 'success' => false, 'message' => 'prepare failed: ' . $conn->error], 500);
     }
 
     $st->bind_param($types, ...$params);
@@ -400,11 +367,7 @@ if ($action === "get") {
     $st->close();
 
     if (!$row) {
-        jexit_api([
-            'ok' => false,
-            'success' => false,
-            'message' => 'ไม่พบข้อมูลผู้ใช้'
-        ], 404);
+        jexit_api(['ok' => false, 'success' => false, 'message' => 'ไม่พบข้อมูลผู้ใช้'], 404);
     }
 
     $row['user_id'] = (int)$row['user_id'];
@@ -427,35 +390,12 @@ if ($action === "get") {
 if ($action === "remove") {
     $target_user_id = (int)param_api('user_id', 0);
 
-    if ($target_user_id <= 0) {
-        jexit_api([
-            'ok' => false,
-            'success' => false,
-            'message' => 'missing user_id'
-        ], 400);
-    }
-
-    if ($dorm_id <= 0) {
-        jexit_api([
-            'ok' => false,
-            'success' => false,
-            'message' => 'missing dorm_id'
-        ], 400);
+    if ($target_user_id <= 0 || $dorm_id <= 0) {
+        jexit_api(['ok' => false, 'success' => false, 'message' => 'ข้อมูลไม่ครบถ้วน'], 400);
     }
 
     $conn->begin_transaction();
     try {
-        $findMember = $conn->prepare("
-            SELECT membership_id, room_id
-            FROM {$T_MEM}
-            WHERE user_id = ?
-              AND dorm_id = ?
-              AND approve_status = 'approved'
-              AND role_code = 't'
-              AND move_out_date IS NULL
-            ORDER BY membership_id DESC
-            LIMIT 1
-        ");
         $findMember = $conn->prepare("SELECT membership_id, room_id FROM {$T_MEM} WHERE user_id = ? AND dorm_id = ? AND approve_status = 'approved' AND role_code = 't' AND move_out_date IS NULL ORDER BY membership_id DESC LIMIT 1");
         $findMember->bind_param('ii', $target_user_id, $dorm_id);
         $findMember->execute();
@@ -470,46 +410,28 @@ if ($action === "remove") {
         $room_id = isset($member['room_id']) ? (int)$member['room_id'] : 0;
 
         if ($room_id > 0) {
-            $updRoom = $conn->prepare("
-                UPDATE {$T_ROOMS}
-                SET tenant_id = NULL, status = 'vacant'
-                WHERE room_id = ? AND dorm_id = ?
-            ");
+            $updRoom = $conn->prepare("UPDATE {$T_ROOMS} SET tenant_id = NULL, status = 'vacant' WHERE room_id = ? AND dorm_id = ?");
             $updRoom->bind_param('ii', $room_id, $dorm_id);
             $updRoom->execute();
             $updRoom->close();
         } else {
-            $findRoom = $conn->prepare("
-                SELECT room_id
-                FROM {$T_ROOMS}
-                WHERE dorm_id = ? AND tenant_id = ?
-                LIMIT 1
-            ");
+            $findRoom = $conn->prepare("SELECT room_id FROM {$T_ROOMS} WHERE dorm_id = ? AND tenant_id = ? LIMIT 1");
             $findRoom->bind_param('ii', $dorm_id, $target_user_id);
             $findRoom->execute();
-            $roomRes = $findRoom->get_result();
-            $room = $roomRes->fetch_assoc();
+            $room = $findRoom->get_result()->fetch_assoc();
             $findRoom->close();
 
             if ($room && !empty($room['room_id'])) {
                 $room_id = (int)$room['room_id'];
 
-                $updRoom = $conn->prepare("
-                    UPDATE {$T_ROOMS}
-                    SET tenant_id = NULL, status = 'vacant'
-                    WHERE room_id = ? AND dorm_id = ?
-                ");
+                $updRoom = $conn->prepare("UPDATE {$T_ROOMS} SET tenant_id = NULL, status = 'vacant' WHERE room_id = ? AND dorm_id = ?");
                 $updRoom->bind_param('ii', $room_id, $dorm_id);
                 $updRoom->execute();
                 $updRoom->close();
             }
         }
 
-        $updMember = $conn->prepare("
-            UPDATE {$T_MEM}
-            SET move_out_date = NOW()
-            WHERE membership_id = ? AND dorm_id = ?
-        ");
+        $updMember = $conn->prepare("UPDATE {$T_MEM} SET move_out_date = NOW() WHERE membership_id = ? AND dorm_id = ?");
         $updMember->bind_param('ii', $membership_id, $dorm_id);
         $updMember->execute();
 
@@ -528,12 +450,7 @@ if ($action === "remove") {
         ]);
     } catch (Throwable $e) {
         $conn->rollback();
-
-        jexit_api([
-            'ok' => false,
-            'success' => false,
-            'message' => 'Error: ' . $e->getMessage(),
-        ], 500);
+        jexit_api(['ok' => false, 'success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
     }
 }
 
@@ -550,59 +467,43 @@ if ($action === "move_room") {
     $new_room_id    = (int)param_api("new_room_id", 0);
 
     if ($target_user_id <= 0 || $dorm_id <= 0 || $old_room_id <= 0 || $new_room_id <= 0) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => "ข้อมูลที่ส่งมาทำรายการย้ายห้องไม่ครบถ้วน"
-        ], 400);
+        jexit_api(["success" => false, "ok" => false, "message" => "ข้อมูลที่ส่งมาทำรายการย้ายห้องไม่ครบถ้วน"], 400);
     }
 
     $conn->begin_transaction();
     try {
-        // 1. เคลียร์ห้องเก่าในตาราง rh_rooms ให้กลับเป็นห้องว่าง
         $stmt1 = $conn->prepare("UPDATE {$T_ROOMS} SET status = 'vacant', tenant_id = NULL WHERE room_id = ? AND dorm_id = ?");
         $stmt1->bind_param("ii", $old_room_id, $dorm_id);
         $stmt1->execute();
         $stmt1->close();
 
-        // 2. ตรวจสอบสถานะห้องใหม่
         $chkRoom = $conn->prepare("SELECT tenant_id, status, room_number FROM {$T_ROOMS} WHERE room_id = ? AND dorm_id = ? LIMIT 1");
         $chkRoom->bind_param("ii", $new_room_id, $dorm_id);
         $chkRoom->execute();
         $roomRow = $chkRoom->get_result()->fetch_assoc();
         $chkRoom->close();
 
-        if (!$roomRow) {
-            throw new Exception("ไม่พบข้อมูลห้องพักห้องใหม่ในระบบ");
-        }
-        if (!empty($roomRow["tenant_id"])) {
-            throw new Exception("ห้องใหม่เลขที่ " . $roomRow["room_number"] . " มีผู้เช่าคนอื่นพักอยู่แล้ว");
-        }
-        if (($roomRow["status"] ?? "") === "maintenance") {
-            throw new Exception("ห้องใหม่เลขที่ " . $roomRow["room_number"] . " อยู่ระหว่างการซ่อมบำรุง");
-        }
+        if (!$roomRow) throw new Exception("ไม่พบข้อมูลห้องพักห้องใหม่ในระบบ");
+        if (!empty($roomRow["tenant_id"])) throw new Exception("ห้องใหม่มีผู้เช่าคนอื่นพักอยู่แล้ว");
+        if (($roomRow["status"] ?? "") === "maintenance") throw new Exception("ห้องใหม่ปิดปรับปรุงซ่อมบำรุงอยู่");
 
         $newRoomNumber = (string)$roomRow["room_number"];
 
-        // อัปเดตผูกมัดห้องใหม่ในตาราง rh_rooms
         $stmt2 = $conn->prepare("UPDATE {$T_ROOMS} SET status = 'occupied', tenant_id = ? WHERE room_id = ? AND dorm_id = ?");
         $stmt2->bind_param("iii", $target_user_id, $new_room_id, $dorm_id);
         $stmt2->execute();
         $stmt2->close();
 
-        // 3. ใส่วันย้ายออกให้ประวัติห้องเก่าใน rh_dorm_memberships
         $stmt3 = $conn->prepare("UPDATE {$T_MEM} SET move_out_date = NOW() WHERE user_id = ? AND room_id = ? AND move_out_date IS NULL AND approve_status = 'approved'");
         $stmt3->bind_param("ii", $target_user_id, $old_room_id);
         $stmt3->execute();
         $stmt3->close();
 
-        // 4. บันทึกประวัติแถวใหม่ของห้องใหม่ใน rh_dorm_memberships
         $stmt4 = $conn->prepare("INSERT INTO {$T_MEM} (user_id, dorm_id, room_id, role_code, approve_status, move_in_date) VALUES (?, ?, ?, 't', 'approved', NOW())");
         $stmt4->bind_param("iii", $target_user_id, $dorm_id, $new_room_id);
         $stmt4->execute();
         $stmt4->close();
 
-        // 5. ส่งบันทึกกระดานแจ้งเตือน (Notifications) ไปหาฝั่งแอปผู้เช่า
         $msgNoti = "ผู้ดูแลระบบได้ทำการย้ายห้องพักของคุณไปยัง ห้อง " . $newRoomNumber . " เรียบร้อยแล้ว";
         $stmtN = $conn->prepare("INSERT INTO {$T_NOTI} (user_id, dorm_id, type_id, message, is_read) VALUES (?, ?, 1, ?, 0)");
         $stmtN->bind_param("iis", $target_user_id, $dorm_id, $msgNoti);
@@ -610,18 +511,10 @@ if ($action === "move_room") {
         $stmtN->close();
 
         $conn->commit();
-        jexit_api([
-            "success" => true,
-            "ok" => true,
-            "message" => "ดำเนินการย้ายไปยังห้อง " . $newRoomNumber . " สำเร็จเรียบร้อยแล้ว"
-        ]);
+        jexit_api(["success" => true, "ok" => true, "message" => "ดำเนินการย้ายไปยังห้อง " . $newRoomNumber . " สำเร็จเรียบร้อยแล้ว"]);
     } catch (Throwable $e) {
         $conn->rollback();
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => $e->getMessage()
-        ], 500);
+        jexit_api(["success" => false, "ok" => false, "message" => $e->getMessage()], 500);
     }
 }
 
@@ -632,30 +525,13 @@ if ($action === "move_room") {
 */
 if ($action === "pending_list" || $action === "pending") {
     if ($dorm_id <= 0 || $admin_user_id <= 0) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => "ข้อมูล dorm_id หรือ admin_user_id ไม่ครบ"
-        ], 400);
+        jexit_api(["success" => false, "ok" => false, "message" => "ข้อมูล dorm_id หรือ admin_user_id ไม่ครบ"], 400);
     }
-
     check_admin_permission($conn, $T_MEM, $admin_user_id, $dorm_id);
-
     try {
-        $bundle = fetch_pending_rooms_bundle($conn, $T_MEM, $T_USERS, $T_ROOMS, $T_BLD, $dorm_id);
-
-        jexit_api([
-            "success" => true,
-            "ok" => true,
-            "pending" => $bundle["pending"],
-            "rooms" => $bundle["rooms"]
-        ]);
+        jexit_api(array_merge(["success" => true, "ok" => true], fetch_pending_rooms_bundle($conn, $T_MEM, $T_USERS, $T_ROOMS, $T_BLD, $dorm_id)));
     } catch (Throwable $e) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => $e->getMessage()
-        ], 500);
+        jexit_api(["success" => false, "ok" => false, "message" => $e->getMessage()], 500);
     }
 }
 
@@ -666,207 +542,66 @@ if ($action === "pending_list" || $action === "pending") {
 */
 if ($action === "approve") {
     if ($dorm_id <= 0 || $admin_user_id <= 0) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => "ข้อมูล dorm_id หรือ admin_user_id ไม่ครบ"
-        ], 400);
+        jexit_api(["success" => false, "ok" => false, "message" => "ข้อมูลไม่ครบถ้วน"], 400);
     }
 
     check_admin_permission($conn, $T_MEM, $admin_user_id, $dorm_id);
 
     $user_dorm_id = (int)param_api("user_dorm_id", 0);
-    $target_user_id = (int)param_api("user_id", 0);
     $room_id = (int)param_api("room_id", 0);
-    $role_selected = trim((string)param_api("role", "tenant"));
-    $role_code = normalize_role_code($role_selected);
+    $role_code = normalize_role_code(param_api("role", "tenant"));
     $move_in_date = trim((string)param_api("move_in_date", ""));
 
-    if ($user_dorm_id <= 0) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => "ข้อมูล user_dorm_id ไม่ถูกต้อง"
-        ], 400);
-    }
-
-    if ($role_code === "t" && $room_id <= 0) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => "กรุณาเลือกห้องพัก"
-        ], 400);
-    }
-
-    if ($move_in_date !== "") {
-        $dt = DateTime::createFromFormat("Y-m-d", $move_in_date);
-        if (!$dt || $dt->format("Y-m-d") !== $move_in_date) {
-            jexit_api([
-                "success" => false,
-                "ok" => false,
-                "message" => "รูปแบบ move_in_date ไม่ถูกต้อง ต้องเป็น YYYY-MM-DD"
-            ], 400);
-        }
-    }
+    if ($user_dorm_id <= 0) jexit_api(["success" => false, "message" => "ข้อมูลคำขอไม่ถูกต้อง"], 400);
+    if ($role_code === "t" && $room_id <= 0) jexit_api(["success" => false, "message" => "กรุณาเลือกห้องพัก"], 400);
 
     $conn->begin_transaction();
     try {
-        $stMem = $conn->prepare("
-            SELECT membership_id, user_id, dorm_id, approve_status
-            FROM {$T_MEM}
-            WHERE membership_id = ? AND dorm_id = ?
-            LIMIT 1
-        ");
+        $stMem = $conn->prepare("SELECT user_id FROM {$T_MEM} WHERE membership_id = ? AND dorm_id = ? AND approve_status = 'pending' LIMIT 1");
         $stMem->bind_param("ii", $user_dorm_id, $dorm_id);
         $stMem->execute();
         $memRow = $stMem->get_result()->fetch_assoc();
         $stMem->close();
 
-        if (!$memRow) {
-            throw new Exception("ไม่พบคำขอที่ต้องการอนุมัติ");
-        }
-
-        if (($memRow["approve_status"] ?? "") !== "pending") {
-            throw new Exception("รายการนี้ไม่อยู่สถานะ pending");
-        }
-
+        if (!$memRow) throw new Exception("ไม่พบคำขอรออนุมัติในระบบ");
         $target_user_id = (int)$memRow["user_id"];
 
-        $stDup = $conn->prepare("
-            SELECT membership_id
-            FROM {$T_MEM}
-            WHERE user_id = ?
-              AND dorm_id = ?
-              AND approve_status = 'approved'
-              AND move_out_date IS NULL
-              AND membership_id <> ?
-            LIMIT 1
-        ");
-        $stDup->bind_param("iii", $target_user_id, $dorm_id, $user_dorm_id);
-        $stDup->execute();
-        $dupRow = $stDup->get_result()->fetch_assoc();
-        $stDup->close();
-
-        if ($dupRow) {
-            throw new Exception("ผู้ใช้นี้มีสถานะอยู่ในหอนี้แล้ว");
-        }
-
-        $move_in_db = null;
-        $roomLabelForMessage = "";
-
         if ($role_code === "t") {
-            if ($move_in_date === "") {
-                $move_in_date = date("Y-m-d");
-            }
+            if ($move_in_date === "") $move_in_date = date("Y-m-d");
             $move_in_db = $move_in_date . " 00:00:00";
 
-            $stRoom = $conn->prepare("
-                SELECT room_id, tenant_id, status, room_number
-                FROM {$T_ROOMS}
-                WHERE room_id = ? AND dorm_id = ?
-                LIMIT 1
-            ");
+            $stRoom = $conn->prepare("SELECT room_number FROM {$T_ROOMS} WHERE room_id = ? AND dorm_id = ? AND tenant_id IS NULL LIMIT 1");
             $stRoom->bind_param("ii", $room_id, $dorm_id);
             $stRoom->execute();
-            $roomRow = $stRoom->get_result()->fetch_assoc();
+            $rRow = $stRoom->get_result()->fetch_assoc();
             $stRoom->close();
+            if (!$rRow) throw new Exception("ห้องไม่ว่างหรือไม่มีอยู่จริง");
 
-            if (!$roomRow) {
-                throw new Exception("ไม่พบห้องพักที่เลือก");
-            }
-
-            if (!empty($roomRow["tenant_id"])) {
-                throw new Exception("ห้องนี้มีผู้เช่าแล้ว");
-            }
-
-            if (($roomRow["status"] ?? "") === "maintenance") {
-                throw new Exception("ห้องนี้อยู่ระหว่างซ่อมบำรุง");
-            }
-
-            $roomLabelForMessage = (string)($roomRow["room_number"] ?? $room_id);
-
-            $stExistRoom = $conn->prepare("
-                SELECT room_id
-                FROM {$T_ROOMS}
-                WHERE dorm_id = ? AND tenant_id = ?
-                LIMIT 1
-            ");
-            $stExistRoom->bind_param("ii", $dorm_id, $target_user_id);
-            $stExistRoom->execute();
-            $existRoomRow = $stExistRoom->get_result()->fetch_assoc();
-            $stExistRoom->close();
-
-            if ($existRoomRow && (int)$existRoomRow["room_id"] !== $room_id) {
-                throw new Exception("ผู้ใช้นี้มีห้องพักอยู่แล้ว");
-            }
-
-            $stRoomUpd = $conn->prepare("
-                UPDATE {$T_ROOMS}
-                SET tenant_id = ?, status = 'occupied'
-                WHERE room_id = ? AND dorm_id = ?
-            ");
+            $stRoomUpd = $conn->prepare("UPDATE {$T_ROOMS} SET tenant_id = ?, status = 'occupied' WHERE room_id = ? AND dorm_id = ?");
             $stRoomUpd->bind_param("iii", $target_user_id, $room_id, $dorm_id);
             $stRoomUpd->execute();
             $stRoomUpd->close();
 
-            $st1 = $conn->prepare("
-                UPDATE {$T_MEM}
-                SET approve_status = 'approved',
-                    role_code = ?,
-                    room_id = ?,
-                    move_in_date = ?,
-                    move_out_date = NULL
-                WHERE membership_id = ? AND dorm_id = ?
-            ");
+            $st1 = $conn->prepare("UPDATE {$T_MEM} SET approve_status = 'approved', role_code = ?, room_id = ?, move_in_date = ?, move_out_date = NULL WHERE membership_id = ? AND dorm_id = ?");
             $st1->bind_param("sisii", $role_code, $room_id, $move_in_db, $user_dorm_id, $dorm_id);
-            $st1->execute();
-            $st1->close();
         } else {
-            $st1 = $conn->prepare("
-                UPDATE {$T_MEM}
-                SET approve_status = 'approved',
-                    role_code = ?,
-                    room_id = NULL,
-                    move_in_date = NULL,
-                    move_out_date = NULL
-                WHERE membership_id = ? AND dorm_id = ?
-            ");
+            $st1 = $conn->prepare("UPDATE {$T_MEM} SET approve_status = 'approved', role_code = ?, room_id = NULL, move_in_date = NULL, move_out_date = NULL WHERE membership_id = ? AND dorm_id = ?");
             $st1->bind_param("sii", $role_code, $user_dorm_id, $dorm_id);
-            $st1->execute();
-            $st1->close();
         }
+        $st1->execute();
+        $st1->close();
 
-        $message = $role_code === "a"
-            ? "คำขอเข้าร่วมหอพักของคุณได้รับการอนุมัติเป็นผู้ดูแลแล้ว"
-            : "คำขอเข้าพักของคุณได้รับการอนุมัติแล้ว ห้อง " . $roomLabelForMessage;
-
-        $stN = $conn->prepare("
-            INSERT INTO {$T_NOTI} (user_id, dorm_id, type_id, message, is_read)
-            VALUES (?, ?, 1, ?, 0)
-        ");
-        $stN->bind_param("iis", $target_user_id, $dorm_id, $message);
+        $msg = $role_code === "a" ? "คำขอได้รับการอนุมัติเป็นผู้ดูแลแล้ว" : "คำขอเข้าพักได้รับการอนุมัติแล้ว ห้อง " . $rRow["room_number"];
+        $stN = $conn->prepare("INSERT INTO {$T_NOTI} (user_id, dorm_id, type_id, message, is_read) VALUES (?, ?, 1, ?, 0)");
+        $stN->bind_param("iis", $target_user_id, $dorm_id, $msg);
         $stN->execute();
         $stN->close();
 
         $conn->commit();
-
-        jexit_api([
-            "success" => true,
-            "ok" => true,
-            "message" => "อนุมัติเรียบร้อยแล้ว",
-            "user_dorm_id" => $user_dorm_id,
-            "user_id" => $target_user_id,
-            "room_id" => $room_id,
-            "move_in_date" => $move_in_date
-        ]);
+        jexit_api(["success" => true, "ok" => true, "message" => "อนุมัติเรียบร้อยแล้ว"]);
     } catch (Throwable $e) {
         $conn->rollback();
-
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => $e->getMessage()
-        ], 500);
+        jexit_api(["success" => false, "message" => $e->getMessage()], 500);
     }
 }
 
@@ -876,88 +611,29 @@ if ($action === "approve") {
 |--------------------------------------------------------------------------
 */
 if ($action === "reject") {
-    if ($dorm_id <= 0 || $admin_user_id <= 0) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => "ข้อมูล dorm_id หรือ admin_user_id ไม่ครบ"
-        ], 400);
-    }
-
     check_admin_permission($conn, $T_MEM, $admin_user_id, $dorm_id);
-
     $user_dorm_id = (int)param_api("user_dorm_id", 0);
-    if ($user_dorm_id <= 0) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => "ID ไม่ถูกต้อง"
-        ], 400);
-    }
+    
+    $stGet = $conn->prepare("SELECT user_id FROM {$T_MEM} WHERE membership_id = ? AND dorm_id = ? LIMIT 1");
+    $stGet->bind_param("ii", $user_dorm_id, $dorm_id);
+    $stGet->execute();
+    $m = $stGet->get_result()->fetch_assoc();
+    $stGet->close();
 
-    try {
-        $stGet = $conn->prepare("
-            SELECT membership_id, user_id
-            FROM {$T_MEM}
-            WHERE membership_id = ? AND dorm_id = ?
-            LIMIT 1
-        ");
-        $stGet->bind_param("ii", $user_dorm_id, $dorm_id);
-        $stGet->execute();
-        $m = $stGet->get_result()->fetch_assoc();
-        $stGet->close();
-
-        if (!$m) {
-            jexit_api([
-                "success" => false,
-                "ok" => false,
-                "message" => "ไม่พบรายการ"
-            ], 404);
-        }
-
-        $st = $conn->prepare("
-            UPDATE {$T_MEM}
-            SET approve_status = 'rejected'
-            WHERE membership_id = ? AND dorm_id = ?
-        ");
+    if ($m) {
+        $st = $conn->prepare("UPDATE {$T_MEM} SET approve_status = 'rejected' WHERE membership_id = ? AND dorm_id = ?");
         $st->bind_param("ii", $user_dorm_id, $dorm_id);
-        $ok = $st->execute();
+        $st->execute();
         $st->close();
 
-        if (!$ok) {
-            jexit_api([
-                "success" => false,
-                "ok" => false,
-                "message" => "ไม่สามารถบันทึกได้"
-            ], 500);
-        }
-
-        $msg = "คำขอเข้าร่วมหอพักของคุณถูกปฏิเสธ";
-        $stN = $conn->prepare("
-            INSERT INTO {$T_NOTI} (user_id, dorm_id, type_id, message, is_read)
-            VALUES (?, ?, 1, ?, 0)
-        ");
-        $stN->bind_param("iis", $m["user_id"], $dorm_id, $msg);
+        $stN = $conn->prepare("INSERT INTO {$T_NOTI} (user_id, dorm_id, type_id, message, is_read) VALUES (?, ?, 1, 'คำขอเข้าหอพักถูกปฏิเสธ', 0)");
+        $stN->bind_param("ii", $m["user_id"], $dorm_id);
         $stN->execute();
         $stN->close();
-
-        jexit_api([
-            "success" => true,
-            "ok" => true,
-            "message" => "ปฏิเสธการสมัครเรียบร้อย"
-        ]);
-    } catch (Throwable $e) {
-        jexit_api([
-            "success" => false,
-            "ok" => false,
-            "message" => $e->getMessage()
-        ], 500);
+        jexit_api(["success" => true, "ok" => true, "message" => "ปฏิเสธคำขอเรียบร้อยแล้ว"]);
     }
+    jexit_api(["success" => false, "message" => "ไม่พบรายการที่ต้องการปฏิเสธ"], 404);
 }
 
-jexit_api([
-    "success" => false,
-    "ok" => false,
-    "message" => "ไม่พบ action ที่ต้องการ"
-], 400);
+jexit_api(["success" => false, "message" => "ไม่พบ action ที่ระบุ"], 400);
 ?>

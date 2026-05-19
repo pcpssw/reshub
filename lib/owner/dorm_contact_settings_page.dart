@@ -119,9 +119,9 @@ class _DormLinkSettingsPageState extends State<DormLinkSettingsPage> {
               children: [
                 _field("ชื่อหอพัก", nameCtrl, icon: Icons.home_work_rounded),
                 const SizedBox(height: 16),
-                _field("ที่ตั้ง", addrCtrl, icon: Icons.location_on_rounded, maxLines: 2),
+                _field("ที่อยู่", addrCtrl, icon: Icons.location_on_rounded, maxLines: 2),
                 const SizedBox(height: 16),
-                _field("เบอร์ติดต่อ", phoneCtrl, icon: Icons.phone_rounded, keyboard: TextInputType.phone),
+                _field("เบอร์โทรศัพท์", phoneCtrl, icon: Icons.phone_rounded, keyboard: TextInputType.phone),
                 const SizedBox(height: 16),
                 
                 // ✅ ช่องโค้ดหอพัก

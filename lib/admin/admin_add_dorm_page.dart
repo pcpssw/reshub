@@ -123,7 +123,7 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
       final data = jsonDecode(res.body);
 
       if (res.statusCode == 200 && data["success"] == true) {
-        _snack("ลงทะเบียนหอพักเรียบร้อย ✅");
+        _snack("ลงทะเบียนหอพักเรียบร้อย");
         Navigator.pop(context, true);
       } else {
         _snack(data["message"] ?? "บันทึกไม่สำเร็จ");
@@ -243,8 +243,8 @@ class _PlatformAddDormPageState extends State<PlatformAddDormPage> {
                       LengthLimitingTextInputFormatter(10),
                     ],
                     validator: (v) {
-                      if (v == null || v.isEmpty) return "กรุณากรอกเบอร์โทร";
-                      if (v.length != 10) return "เบอร์โทรต้องมี 10 หลักเท่านั้น";
+                      if (v == null || v.isEmpty) return "กรุณากรอกเบอร์โทรศัพท์โทร";
+                      if (v.length != 10) return "เบอร์โทรศัพท์โทรต้องมี 10 หลักเท่านั้น";
                       return null;
                     },
                   ),

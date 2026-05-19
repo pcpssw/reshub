@@ -277,7 +277,7 @@ class _PlatformUserListPageState extends State<PlatformUserListPage>
                       "เบอร์โทรศัพท์",
                       Icons.phone_android_rounded,
                     ),
-                    validator: (v) => v!.isEmpty ? "กรุณากรอกเบอร์" : null,
+                    validator: (v) => v!.isEmpty ? "กรุณากรอกเบอร์โทรศัพท์" : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -386,7 +386,7 @@ class _PlatformUserListPageState extends State<PlatformUserListPage>
             color: cTextMain,
           ),
           decoration: InputDecoration(
-            hintText: "ค้นหาชื่อ หรือเบอร์โทร...",
+            hintText: "ค้นหาชื่อ หรือเบอร์โทรศัพท์โทร...",
             hintStyle: const TextStyle(
               fontSize: fDetail,
               color: Colors.grey,

@@ -224,7 +224,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       children: [
                         _popupInfoRow("ชื่อ-นามสกุล", fullNameCtrl.text.trim()),
                         const SizedBox(height: 10),
-                        _popupInfoRow("เบอร์โทร", phoneCtrl.text.trim()),
+                        _popupInfoRow("เบอร์โทรศัพท์โทร", phoneCtrl.text.trim()),
                         const SizedBox(height: 10),
                         _popupInfoRow("Username", userCtrl.text.trim()),
                         const SizedBox(height: 10),
@@ -426,7 +426,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text(
-                            "สร้างบัญชี",
+                            "สมัครสมาชิก",
                             style: TextStyle(
                               fontSize: fTitle,
                               fontWeight: FontWeight.w900,
@@ -447,7 +447,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           const SizedBox(height: 10),
                           _field(
                             phoneCtrl,
-                            "เบอร์โทร",
+                            "เบอร์โทรศัพท์โทร",
                             Icons.phone_android_outlined,
                             keyboardType: TextInputType.phone,
                             inputFormatters: [
@@ -748,7 +748,7 @@ class _RegisterPageState extends State<RegisterPage> {
           if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(val)) return "ภาษาอังกฤษหรือตัวเลขเท่านั้น";
         }
         
-        if (label == "เบอร์โทร" && val.length < 10) return "กรุณากรอกเบอร์โทรให้ครบ 10 หลัก";
+        if (label == "เบอร์โทรศัพท์" && val.length < 10) return "กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก";
 
         if (label == "รหัสผ่าน") {
           if (val.length < 6) return "อย่างน้อย 6 ตัวอักษร";

@@ -164,7 +164,6 @@ function room_select_sql(mysqli $conn): array {
 }
 
 $action = (string)req('action', 'list');
-
 $dorm_id = (int)req('dorm_id', 0);
 if ($dorm_id <= 0) {
     out_fail('missing dorm_id', 400);
@@ -175,6 +174,7 @@ const T_SETTINGS = 'rh_dorm_settings';
 const T_BUILDINGS = 'rh_buildings';
 const T_ROOM_TYPES = 'rh_room_types';
 const T_ROOMS = 'rh_rooms';
+const T_USERS = 'rh_users';
 
 function ensure_dorm_settings(mysqli $conn, int $dorm_id): void {
     $st = $conn->prepare("INSERT IGNORE INTO " . T_SETTINGS . " (dorm_id, water_rate, electric_rate) VALUES (?, 0.00, 0.00)");
@@ -456,9 +456,6 @@ if ($action === 'list') {
     out_ok(['data' => $rows, 'rooms' => $rows]);
 }
 
-// ----------------------------------------------------
-// ระบบเพิ่มห้อง (Add Room)
-// ----------------------------------------------------
 if ($action === 'add') {
     $room_number = trim((string)req('room_number', ''));
     $building_id = (int)req('building_id', 0);
@@ -467,36 +464,6 @@ if ($action === 'add') {
     $rent_price = (float)req('rent_price', req('price', 0));
     $status = trim((string)req('status', 'vacant'));
     $tenant_id = req('tenant_id') ? (int)req('tenant_id') : null;
-
-    // --- ✨ สร้างผู้ใช้ออฟไลน์และตั้งค่าล็อกอิน ✨ ---
-    $offline_name = trim((string)req('offline_name', ''));
-    $offline_phone = trim((string)req('offline_phone', '-'));
-    if ($offline_phone === '') $offline_phone = '-';
-    
-    if ($offline_name !== '' && $status === 'occupied' && empty($tenant_id)) {
-        // ใช้เบอร์โทรเป็น Username แต่ถ้าไม่ได้กรอกมาให้สุ่ม
-        $dummy_username = ($offline_phone !== '-') ? $offline_phone : 'offline_' . time() . '_' . rand(100, 999);
-        
-        // เช็คว่าเบอร์นี้เคยสมัครไปแล้วหรือยัง (ป้องกัน Error ซ้ำใน DB)
-        $chk = $conn->prepare("SELECT user_id FROM rh_users WHERE username = ? LIMIT 1");
-        $chk->bind_param('s', $dummy_username);
-        $chk->execute();
-        if ($chk->get_result()->fetch_assoc()) {
-            $dummy_username .= '_' . rand(10, 99); // ถ้าซ้ำเติมเลขท้ายเข้าไป
-        }
-        $chk->close();
-
-        // รหัสผ่านใช้ตัวเดียวกับ Username (เบอร์โทร)
-        $dummy_password = password_hash($dummy_username, PASSWORD_DEFAULT);
-        
-        $stmt_user = $conn->prepare("INSERT INTO rh_users (username, password, full_name, phone, user_level) VALUES (?, ?, ?, ?, 't')");
-        if ($stmt_user) {
-            $stmt_user->bind_param('ssss', $dummy_username, $dummy_password, $offline_name, $offline_phone);
-            $stmt_user->execute();
-            $tenant_id = (int)$conn->insert_id; 
-            $stmt_user->close();
-        }
-    }
 
     if ($room_number === '' || $floor <= 0) out_fail('ข้อมูลไม่ครบ (room_number/floor)');
     if (!in_array($room_type, ['fan', 'air'], true)) out_fail('room_type ไม่ถูกต้อง');
@@ -514,24 +481,12 @@ if ($action === 'add') {
     $newId = (int)$conn->insert_id;
     $stmt->close();
 
-    if ($status === 'occupied' && !empty($tenant_id)) {
-        $stmt_member = $conn->prepare("INSERT INTO rh_dorm_memberships (user_id, dorm_id, room_id, role_code, approve_status, move_in_date) VALUES (?, ?, ?, 't', 'approved', NOW())");
-        if ($stmt_member) {
-            $stmt_member->bind_param('iii', $tenant_id, $dorm_id, $newId);
-            $stmt_member->execute();
-            $stmt_member->close();
-        }
-    }
-
     out_ok(['message' => 'เพิ่มห้องสำเร็จ', 'room_id' => $newId]);
 }
 
-// ----------------------------------------------------
-// ระบบอัปเดตห้อง (Update Room)
-// ----------------------------------------------------
 if ($action === 'update') {
     $room_id = (int)req('room_id', 0);
-    $rent_price = (float)req('rent_price', req('price', 0));
+    $rent_price = (float)req('rent_price', 0);
     $room_type = trim((string)req('room_type', ''));
     $status = trim((string)req('status', ''));
 
@@ -539,79 +494,29 @@ if ($action === 'update') {
     if (!in_array($room_type, ['fan', 'air'], true)) out_fail('room_type ไม่ถูกต้อง');
     if (!in_array($status, ['vacant', 'occupied', 'maintenance'], true)) out_fail('status ไม่ถูกต้อง');
 
-    // ดึงข้อมูลเก่าของห้องเพื่อตรวจสอบว่าเดิมใครเช่าอยู่
-    $stmt_old = $conn->prepare("SELECT tenant_id, status FROM rh_rooms WHERE room_id=? AND dorm_id=?");
-    $stmt_old->bind_param('ii', $room_id, $dorm_id);
-    $stmt_old->execute();
-    $row_old = $stmt_old->get_result()->fetch_assoc();
-    $stmt_old->close();
+    $conn->begin_transaction();
+    try {
+        [$type_id, $default_rent] = resolve_room_type_id($conn, $dorm_id, $room_type);
+        if ($type_id <= 0) out_fail('ไม่พบประเภทห้องของหอนี้');
+        if ($rent_price <= 0) $rent_price = $default_rent;
 
-    $current_tenant_id = $row_old ? $row_old['tenant_id'] : null;
-
-    if (req('tenant_id') !== null) {
-        $tenant_id = (int)req('tenant_id');
-        if ($tenant_id <= 0) $tenant_id = null;
-    } else {
-        $tenant_id = $current_tenant_id;
-    }
-
-    if ($status === 'vacant') {
-        if ($current_tenant_id) {
-            $stmt_out = $conn->prepare("UPDATE rh_dorm_memberships SET move_out_date = NOW() WHERE user_id = ? AND room_id = ? AND move_out_date IS NULL");
-            if ($stmt_out) {
-                $stmt_out->bind_param('ii', $current_tenant_id, $room_id);
-                $stmt_out->execute();
-                $stmt_out->close();
-            }
+        // อัปเดตข้อมูลพื้นฐานห้องพัก (หากย้ายออกหรือเปลี่ยนสถานะ ให้เคลียร์ tenant_id อัตโนมัติ)
+        if ($status !== 'occupied') {
+            $stmt = $conn->prepare('UPDATE rh_rooms SET type_id=?, base_rent=?, status=?, tenant_id=NULL WHERE room_id=? AND dorm_id=?');
+            $stmt->bind_param('idsii', $type_id, $rent_price, $status, $room_id, $dorm_id);
+        } else {
+            $stmt = $conn->prepare('UPDATE rh_rooms SET type_id=?, base_rent=?, status=? WHERE room_id=? AND dorm_id=?');
+            $stmt->bind_param('idsii', $type_id, $rent_price, $status, $room_id, $dorm_id);
         }
-        $tenant_id = null; 
+        $stmt->execute();
+        $stmt->close();
 
-    } else if ($status === 'occupied') {
-        $offline_name = trim((string)req('offline_name', ''));
-        $offline_phone = trim((string)req('offline_phone', '-'));
-        if ($offline_phone === '') $offline_phone = '-';
-        
-        if ($offline_name !== '' && empty($tenant_id)) {
-            // --- ✨ สร้างผู้ใช้ออฟไลน์และตั้งค่าล็อกอิน ✨ ---
-            $dummy_username = ($offline_phone !== '-') ? $offline_phone : 'offline_' . time() . '_' . rand(100, 999);
-            
-            $chk = $conn->prepare("SELECT user_id FROM rh_users WHERE username = ? LIMIT 1");
-            $chk->bind_param('s', $dummy_username);
-            $chk->execute();
-            if ($chk->get_result()->fetch_assoc()) {
-                $dummy_username .= '_' . rand(10, 99);
-            }
-            $chk->close();
-
-            $dummy_password = password_hash($dummy_username, PASSWORD_DEFAULT);
-            
-            $stmt_user = $conn->prepare("INSERT INTO rh_users (username, password, full_name, phone, user_level) VALUES (?, ?, ?, ?, 't')");
-            if ($stmt_user) {
-                $stmt_user->bind_param('ssss', $dummy_username, $dummy_password, $offline_name, $offline_phone);
-                $stmt_user->execute();
-                $tenant_id = (int)$conn->insert_id; 
-                $stmt_user->close();
-                
-                $stmt_member = $conn->prepare("INSERT INTO rh_dorm_memberships (user_id, dorm_id, room_id, role_code, approve_status, move_in_date) VALUES (?, ?, ?, 't', 'approved', NOW())");
-                if ($stmt_member) {
-                    $stmt_member->bind_param('iii', $tenant_id, $dorm_id, $room_id);
-                    $stmt_member->execute();
-                    $stmt_member->close();
-                }
-            }
-        }
+        $conn->commit();
+        out_ok(['message' => 'อัปเดตข้อมูลห้องพักสำเร็จ']);
+    } catch (Throwable $e) {
+        $conn->rollback();
+        out_fail('เกิดข้อผิดพลาดในการบันทึก: ' . $e->getMessage(), 500);
     }
-
-    [$type_id, $default_rent] = resolve_room_type_id($conn, $dorm_id, $room_type);
-    if ($type_id <= 0) out_fail('ไม่พบประเภทห้องของหอนี้');
-    if ($rent_price <= 0) $rent_price = $default_rent;
-
-    $stmt = $conn->prepare('UPDATE rh_rooms SET type_id=?, base_rent=?, status=?, tenant_id=? WHERE room_id=? AND dorm_id=?');
-    $stmt->bind_param('idsiii', $type_id, $rent_price, $status, $tenant_id, $room_id, $dorm_id);
-    $stmt->execute();
-    $stmt->close();
-
-    out_ok(['message' => 'อัปเดตสำเร็จ']);
 }
 
 if ($action === 'bulk_update') {

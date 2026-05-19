@@ -155,7 +155,7 @@ class _AdminPendingPageState extends State<AdminPendingPage> {
       final data = jsonDecode(response.body);
 
       if (data["success"] == true) {
-        _snack("ดำเนินการเรียบร้อยแล้ว ✅");
+        _snack("ดำเนินการเรียบร้อยแล้ว");
         await _reload();
       } else {
         _snack("ล้มเหลว: ${data["message"]}");
@@ -274,38 +274,140 @@ class _AdminPendingPageState extends State<AdminPendingPage> {
     }
   }
 
-  Future<void> _reject(int udId) async {
-    final ok = await showDialog<bool>(
+  // 🔥 ฟังก์ชันแสดง Popup แจ้งเตือนปฏิเสธคำขอสไตล์รูปที่ 2 (ปรับสีปุ่มยกเลิกให้เป็นน้ำตาลอ่อนลง)
+  Future<bool?> _showRejectDialog(BuildContext context, String tenantName) {
+    return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("ปฏิเสธคำขอ?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("ยกเลิก"),
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              "ปฏิเสธ",
-              style: TextStyle(color: Colors.red),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 1. วงกลมถังขยะสีชมพูอ่อน
+                CircleAvatar(
+                  radius: 38,
+                  backgroundColor: const Color(0xFFFFEBEE),
+                  child: const Icon(
+                    Icons.delete_forever_rounded,
+                    size: 44,
+                    color: Color(0xFFFF5252),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                
+                // 2. ข้อความหัวข้อ
+                const Text(
+                  "ปฏิเสธคำขอ?",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: cTextMain,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                
+                // 3. รายละเอียด
+                Text(
+                  "คุณแน่ใจใช่ไหมที่จะปฏิเสธคำขอของ\nคุณ $tenantName ใช่หรือไม่?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: fDetail,
+                    color: Colors.grey.shade600,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                
+                // 4. ปุ่มกดยืนยัน / ยกเลิก
+                Row(
+                  children: [
+                    // ปุ่มยืนยัน (สีแดงเด่น)
+                    Expanded(
+                      child: SizedBox(
+                        height: 46,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF523D2D),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text(
+                            "ยืนยัน",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    
+                    // ปุ่มยกเลิก (เปลี่ยนสีตัวอักษรเป็นน้ำตาลอ่อนละมุน 0xFF8B7E74)
+                    Expanded(
+                      child: SizedBox(
+                        height: 46,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFE6E0D4)), // ขอบสีครีม/น้ำตาลอ่อนมินิมอล
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text(
+                            "ยกเลิก",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF8B7E74), 
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
+  }
+
+  Future<void> _reject(int udId, String name) async {
+    final ok = await _showRejectDialog(context, name);
 
     if (ok == true) {
-      await http.post(
-        Uri.parse(AppConfig.url("tenants_api.php")),
-        body: {
-          "action": "reject",
-          "dorm_id": dormId.toString(),
-          "admin_user_id": adminUserId.toString(),
-          "user_dorm_id": udId.toString(),
-        },
-      );
-      await _reload();
+      setState(() => loading = true);
+      try {
+        await http.post(
+          Uri.parse(AppConfig.url("tenants_api.php")),
+          body: {
+            "action": "reject",
+            "dorm_id": dormId.toString(),
+            "admin_user_id": adminUserId.toString(),
+            "user_dorm_id": udId.toString(),
+          },
+        );
+        _snack("ปฏิเสธคำขอสำเร็จ ❌");
+      } catch (e) {
+        _snack("เกิดข้อผิดพลาด");
+      } finally {
+        await _reload();
+      }
     }
   }
 
@@ -442,7 +544,7 @@ class _AdminPendingPageState extends State<AdminPendingPage> {
       child: TextField(
         onChanged: (v) => setState(() => keyword = v),
         decoration: InputDecoration(
-          hintText: "ค้นหาชื่อ หรือ เบอร์โทร",
+          hintText: "ค้นหาชื่อ หรือ เบอร์โทรศัพท์โทร",
           hintStyle: const TextStyle(fontSize: fDetail, color: Colors.grey),
           prefixIcon: const Icon(Icons.search, size: 18, color: cIcon),
           filled: true,
@@ -551,7 +653,7 @@ class _AdminPendingPageState extends State<AdminPendingPage> {
                 Icons.close_rounded,
                 Colors.redAccent,
                 false,
-                () => _reject(udId),
+                () => _reject(udId, name),
               ),
             ],
           ),

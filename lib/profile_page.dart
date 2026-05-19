@@ -71,7 +71,7 @@ class _ProfilePageState extends State<ProfilePage> {
   int _currentRoomId = 0; 
 
   bool get isDormAdmin => roleInDorm == "owner" || roleInDorm == "admin";
-  bool get isFormerTenant => !isDormAdmin && (tenantStatus == "former" || (moveOutDate.trim().isNotEmpty && moveOutDate != "-"));
+  bool get isFormerTenant => !isDormAdmin && tenantStatus == "former";
 
   @override
   void initState() {
@@ -125,14 +125,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
     _currentRoomId = _toInt(t["room_id"]); 
 
-    final rNo = t["room_number"]?.toString().trim() ?? "";
-    final building = (t["building"]?.toString().trim().isNotEmpty == true)
-        ? t["building"].toString().trim()
-        : (t["building_name"]?.toString().trim() ?? "");
+    if (tenantStatus == "former") {
+      final history = t["all_rooms_history"]?.toString().trim() ?? "";
+      roomText = history.isNotEmpty ? history : "ไม่มีข้อมูลประวัติห้องพัก";
+    } else {
+      final rNo = t["room_number"]?.toString().trim() ?? "";
+      final building = (t["building"]?.toString().trim().isNotEmpty == true)
+          ? t["building"].toString().trim()
+          : (t["building_name"]?.toString().trim() ?? "");
 
-    roomText = (rNo.isNotEmpty && building.isNotEmpty) 
-        ? "$building / ห้อง $rNo" 
-        : (rNo.isNotEmpty ? rNo : "ยังไม่ได้รับการจัดห้อง");
+      roomText = (rNo.isNotEmpty && building.isNotEmpty) 
+          ? "$building / ห้อง $rNo" 
+          : (rNo.isNotEmpty ? rNo : "ยังไม่ได้รับการจัดห้อง");
+    }
         
     moveInDate = _prettyThaiDate(t["move_in_date"]?.toString());
     moveOutDate = _prettyThaiDate(t["move_out_date"]?.toString());
@@ -229,6 +234,7 @@ class _ProfilePageState extends State<ProfilePage> {
         
     final String typeName = item['type_name'] ?? 'แจ้งซ่อม';
     final String detail = item['detail'] ?? 'ไม่มีรายละเอียด';
+    final String roomNo = item['room_number']?.toString() ?? ''; 
     final Color mainColor = repairTypeColor(typeName);
 
     return Container(
@@ -265,15 +271,27 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(detail, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: cTextMain), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(color: mainColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(repairTypeIcon(typeName), size: 13, color: mainColor),
-                      const SizedBox(width: 6),
-                      Text(typeName, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: mainColor)),
-                    ]),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(color: mainColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(repairTypeIcon(typeName), size: 13, color: mainColor),
+                          const SizedBox(width: 6),
+                          Text(typeName, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: mainColor)),
+                        ]),
+                      ),
+                      if (roomNo.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(color: cTeddy.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
+                          child: Text("ห้อง $roomNo", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cTeddy)),
+                        ),
+                      ]
+                    ],
                   ),
                   const Spacer(),
                   Text(_prettyThaiDate(item['created_at']), style: const TextStyle(fontSize: 11, color: Colors.black38)),
@@ -295,6 +313,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final int monthIdx = int.tryParse(item['month'].toString()) ?? 1;
     final String monthName = thFullMonths[monthIdx - 1];
     final int yearTh = (int.tryParse(item['year'].toString()) ?? 0) + 543;
+    final String roomNo = item['room_number']?.toString() ?? ''; 
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -312,7 +331,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text("งวดเดือน $monthName $yearTh", style: const TextStyle(fontWeight: FontWeight.bold, color: cTextMain)),
-                    Text("${item['total']} บาท", style: const TextStyle(fontSize: 13, color: cBrown, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text("${item['total']} บาท", style: const TextStyle(fontSize: 13, color: cBrown, fontWeight: FontWeight.bold)),
+                        if (roomNo.isNotEmpty) ...[
+                          const SizedBox(width: 10),
+                          Text("•  ห้อง $roomNo", style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                        ]
+                      ],
+                    ),
                   ])),
                   _badge(item['status_label'] ?? '', hex: item['status_color']),
                 ]),
@@ -362,14 +390,18 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildRoleBadge(),
                     const SizedBox(height: 30),
                     _section("ข้อมูลส่วนตัว"),
-                    _info(Icons.account_circle_outlined, "username", username),
+                    _info(Icons.account_circle_outlined, "ชื่อผู้ใช้งาน", username),
                     _info(Icons.person_outline, "ชื่อ - นามสกุล", fullName),
                     _info(Icons.phone_android_outlined, "เบอร์โทรศัพท์", phone),
                     const SizedBox(height: 25),
                     _section(isDormAdmin ? "ข้อมูลหอพัก" : "รายละเอียดห้องพัก"),
                     _info(Icons.apartment_rounded, "ชื่อหอพัก", dormName.isEmpty ? "ไม่มีข้อมูล" : dormName),
                     if (!isDormAdmin) ...[
-                      _info(Icons.meeting_room_outlined, "เลขห้องพัก", roomText),
+                      _info(
+                        isFormerTenant ? Icons.history_rounded : Icons.meeting_room_outlined, 
+                        isFormerTenant ? "ประวัติห้องที่เคยอยู่" : "เลขห้องพัก", 
+                        roomText
+                      ),
                       if (moveInDate != "-") _info(Icons.login_rounded, "วันย้ายเข้า", moveInDate),
                       if (moveOutDate != "-") _info(Icons.logout_rounded, "วันย้ายออก", moveOutDate),
                     ],
@@ -498,7 +530,7 @@ class _ProfilePageState extends State<ProfilePage> {
       });
       final data = jsonDecode(res.body);
       if ((data["ok"] == true || data["success"] == true) && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ดำเนินการเรียบร้อยแล้ว ✅"), backgroundColor: cTeddy));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("ดำเนินการเรียบร้อยแล้ว"), backgroundColor: cTeddy));
         Navigator.pop(context, true);
       }
     } catch (e) { debugPrint(e.toString()); } finally { if (mounted) setState(() => _loading = false); }
@@ -511,7 +543,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ==========================================
-  // 🛠️ ส่วนต่อขยายระบบย้ายห้องพัก (ปรับปรุงดีไซน์เป็นโครงสร้าง Dialog แบบกลุ่มออก)
+  // 🛠️ ส่วนต่อขยายระบบย้ายห้องพัก
   // ==========================================
   Widget _moveRoomBtn() => SizedBox(
         width: double.infinity,
@@ -581,7 +613,6 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.white,
-        // ปรับดีไซน์โครงสร้างรูปทรงมนโค้งมนเหมือนกลุ่มยืนยันการออกหอพัก
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)), 
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -590,7 +621,6 @@ class _ProfilePageState extends State<ProfilePage> {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 🎨 วงกลมไอคอนด้านบน ปรับให้สวยงามสอดคล้องกับธีมแอป
                   Container(
                     width: 80,
                     height: 80,
@@ -602,14 +632,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(height: 20),
                   
-                  // หัวข้อเรื่องหลัก
                   const Text(
                     "ย้ายห้องพักในหอเดิม",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cTextMain),
                   ),
                   const SizedBox(height: 12),
                   
-                  // ข้อมูลผู้เช่าแบบย่อ
                   Text(
                     "ผู้เช่า: $fullName\nห้องปัจจุบัน: ${roomText.replaceAll("ห้อง", "")}",
                     textAlign: TextAlign.center,
@@ -617,7 +645,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(height: 20),
                   
-                  // เมนูดรอปดาวน์เลือกเลขห้องพักใหม่
                   dropdownRooms.isEmpty
                   ? Container(
                       padding: const EdgeInsets.all(16),
@@ -628,7 +655,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
                       ),
                       child: const Text(
-                        "❌ ไม่มีห้องว่างเหลืออยู่ในระบบหอพักนี้",
+                        "ไม่มีห้องว่างเหลืออยู่ในระบบหอพักนี้",
                         style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
@@ -668,7 +695,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   const SizedBox(height: 30),
                   
-                  // 🛠️ ส่วนของปุ่มกดยกเลิกและยืนยัน จัดดีไซน์ชิดกันเต็มความกว้างแบบปุ่มออกหอพัก
                   Row(
                     children: [
                       Expanded(
@@ -741,7 +767,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (data["success"] == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("ย้ายห้องพักผู้เช่าสำเร็จเรียบร้อยแล้ว! 🎉"), backgroundColor: cTeddy)
+          const SnackBar(content: Text("ย้ายห้องพักผู้เช่าสำเร็จเรียบร้อยแล้ว!"), backgroundColor: cTeddy)
         );
         Navigator.pop(context, true);
       } else {

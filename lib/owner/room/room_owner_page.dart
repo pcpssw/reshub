@@ -20,6 +20,9 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
   static const Color cAccent = Color(0xFFDCD2C1);
   static const Color cIcon = Color(0xFF523D2D);
   static const Color cTextMain = Color(0xFF523D2D);
+  
+  // ☕️ เพิ่มสีน้ำตาลซอฟต์/ชานม สำหรับปุ่มที่ต้องการให้อ่อนลงมาหน่อย
+  static const Color cButtonSoft = Color(0xFF8D6E63); 
 
   static const double fHeader = 15.0;
   static const double fBody = 14.0;
@@ -328,7 +331,6 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
                 ),
               ],
             ),
-     
           ],
         ),
       ),
@@ -362,10 +364,10 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
               )
             : null,
         title: const Text("จัดการห้องพัก", style: TextStyle(color: cTextMain, fontWeight: FontWeight.bold, fontSize: fHeader)),
-        // --- เพิ่มปุ่มรีเฟรชตรงนี้ ---
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: cIcon),
+            // ☕️ เปลี่ยนไอคอนรีเฟรชให้ใช้สีน้ำตาลซอฟต์ที่ละมุนสายตาขึ้น
+            icon: const Icon(Icons.refresh_rounded, color: cButtonSoft), 
             onPressed: () => fetchRooms(showLoading: true),
           ),
         ],
@@ -385,7 +387,8 @@ class _AdminRoomPageState extends State<AdminRoomPage> {
               padding: const EdgeInsets.only(bottom: 80.0),
               child: FloatingActionButton(
                 onPressed: _scrollToTop,
-                backgroundColor: cIcon,
+                // ☕️ เปลี่ยนสีปุ่มลอยเป็นสีน้ำตาลซอฟต์ที่เพิ่งกำหนดใหม่
+                backgroundColor: cButtonSoft, 
                 elevation: 6,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),

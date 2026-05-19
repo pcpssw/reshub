@@ -30,7 +30,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
   int dormId = 0;
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController(); // สำหรับควบคุมการเลื่อน
-  bool _showBackToTopButton = false; // สถานะการแสดงปุ่มเด้งขึ้นบน
+  bool _showBackToTopButton = false; // Status สำหรับปุ่มเลื่อนขึ้นบน
 
   List<Map<String, dynamic>> allUsers = [];
   String keyword = "";
@@ -59,7 +59,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
   @override
   void dispose() {
     _tabController.dispose();
-    _scrollController.dispose(); // คืนคืน Memory
+    _scrollController.dispose(); // คืน Memory คืนระบบ
     super.dispose();
   }
 
@@ -126,15 +126,23 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
   bool _isFormerTenant(Map<String, dynamic> u) {
     if (_isAdmin(u)) return false;
     final tenantStatus = (u["tenant_status"] ?? "").toString().toLowerCase();
-    final moveOutDate = (u["move_out_date"] ?? "").toString().trim();
-    return tenantStatus == "former" || moveOutDate.isNotEmpty;
+    // คัดแยกกลุ่มผู้เช่าเก่าจากการวิเคราะห์สถานะจริงฝั่งระบบฐานข้อมูล
+    return tenantStatus == "former";
   }
 
   String _roomLabel(Map<String, dynamic> t) {
     if (_isAdmin(t)) {
       final roleInDorm = (t["role_in_dorm"] ?? "").toString().toLowerCase();
-      return roleInDorm == "owner" ? "เจ้าของหอพัก" : "ผู้ดูแลหอพัก";
+      return roleInDorm == "owner" ? "ผู้ดูแลหอพัก" : "ผู้ดูแลหอพัก";
     }
+
+    // ตรวจสอบว่าเป็นผู้เช่าเก่าหรือไม่ หากใช่ ให้ดึงประวัติห้องทั้งหมดที่มัดรวมกันมาโชว์
+    if (_isFormerTenant(t)) {
+      final history = (t["all_rooms_history"] ?? "").toString().trim();
+      return history.isNotEmpty ? "ห้องที่เคยอยู่: $history" : "ไม่มีประวัติห้องพัก";
+    }
+
+    // ผู้เช่าปัจจุบัน แสดงผลอาคารและเลขห้องปกติ
     final b = (t["building"] ?? "").toString().trim();
     final r = (t["room_number"] ?? "").toString().trim();
     if (b.isEmpty && r.isEmpty) return "รอการจัดห้อง";
@@ -194,7 +202,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
               tabs: const [
                 Tab(text: "ผู้เช่าห้อง"),
                 Tab(text: "ประวัติผู้เช่าเก่า"),
-                Tab(text: "ผู้ดูแลห้อง"),
+                Tab(text: "ผู้ดูแลหอพัก"),
               ],
             ),
           ),
@@ -239,7 +247,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
           onChanged: (v) => setState(() => keyword = v),
           style: const TextStyle(fontSize: fBody),
           decoration: InputDecoration(
-            hintText: "ค้นหาชื่อ เบอร์โทร หรือ เลขห้องพัก",
+            hintText: "ค้นหาชื่อ เบอร์โทรศัพท์ หรือ เลขห้องพัก",
             hintStyle: const TextStyle(fontSize: fDetail),
             prefixIcon: const Icon(Icons.search, size: 20, color: cIcon),
             filled: true,
@@ -262,7 +270,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
         onRefresh: _fetchTenants,
         color: cTextMain,
         child: ListView(
-          controller: _scrollController, // ใส่ Controller เพื่อให้เช็คตำแหน่งได้
+          controller: _scrollController, // Controller สำหรับเช็คพิกัดเลื่อนจอ
           children: [
             SizedBox(
               height: MediaQuery.of(context).size.height * 0.55,
@@ -293,7 +301,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       onRefresh: _fetchTenants,
       color: cTextMain,
       child: ListView.builder(
-        controller: _scrollController, // ใส่ Controller ตรงนี้เพื่อให้ปุ่มทำงาน
+        controller: _scrollController, // มอบสิทธิ์การควบคุมให้ ScrollController ทำงานร่วมกับ FloatingActionButton
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
         itemCount: filtered.length,
         itemBuilder: (context, index) {

@@ -77,7 +77,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       if (!mounted) return;
 
       if (res.statusCode == 200 && data["success"] == true) {
-        _snack("เปลี่ยนรหัสผ่านเรียบร้อย ✅");
+        _snack("เปลี่ยนรหัสผ่านเรียบร้อย");
         Navigator.pop(context);
       } else {
         _snack(data["message"] ?? "เปลี่ยนรหัสไม่สำเร็จ");

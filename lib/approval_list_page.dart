@@ -21,7 +21,7 @@ class _PendingPageState extends State<PendingPage> {
   static const Color cWhite    = Colors.white;
 
   // 📏 Typography
-  static const double fTitle   = 20.0;
+  static const double fTitle   = 16.0;
   static const double fCaption = 12.0;
 
   Timer? _timer;
@@ -126,7 +126,7 @@ class _PendingPageState extends State<PendingPage> {
               const SizedBox(height: 30),
               
               const Text(
-                "รอการอนุมัติ",
+                "รอการอนุมัติ \n หากรอนานเกินไป \nกรุณาติดต่อยืนตัวตนกับเจ้าหน้าที่หอพัก",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: fTitle, 
@@ -181,10 +181,7 @@ class _PendingPageState extends State<PendingPage> {
               ),
               
               const SizedBox(height: 20),
-              Text(
-                "หากรอนานเกินไป กรุณาติดต่อเจ้าหน้าที่หอพัก",
-                style: TextStyle(color: cTeddy.withOpacity(0.4), fontSize: fCaption),
-              ),
+             
             ],
           ),
         ),

@@ -66,6 +66,21 @@ class _BillDetailPageState extends State<BillDetailPage> {
     return double.tryParse(value.toString()) ?? 0.0;
   }
 
+  // ฟังก์ชันช่วยแปลงตัวเลขเดือนเป็นชื่อเดือนภาษาไทย
+  String _getMonthName(int month) {
+    const monthNames = [
+      "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+      "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+    ];
+    if (month < 1 || month > 12) return month.toString();
+    return monthNames[month - 1];
+  }
+
+  // ฟังก์ชันแปลงปี ค.ศ. เป็น พ.ศ.
+  int _toThaiYear(int christYear) {
+    return christYear < 2500 ? christYear + 543 : christYear;
+  }
+
   TextStyle _kanit({double? size, FontWeight? weight, Color? color}) {
     return GoogleFonts.kanit(
       fontSize: size,
@@ -128,8 +143,17 @@ class _BillDetailPageState extends State<BillDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("ห้อง ${it.roomNumber}", style: _kanit(color: Colors.white, size: fTitle, weight: FontWeight.bold)),
-          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("ห้อง ${it.roomNumber}", style: _kanit(color: Colors.white, size: fTitle, weight: FontWeight.bold)),
+              Text(
+                "ประจำเดือน ${_getMonthName(it.month)} ${_toThaiYear(it.year)}", 
+                style: _kanit(color: Colors.white.withOpacity(0.9), size: fDetail),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           Text("ผู้เช่า: ${it.fullName ?? 'ไม่ระบุชื่อ'}", style: _kanit(color: Colors.white.withOpacity(0.8), size: fDetail)),
         ],
       ),
@@ -265,9 +289,8 @@ class _BillDetailPageState extends State<BillDetailPage> {
         ],
       );
     } else {
-      // 🌟 เช็กก่อนว่าแอดมินส่งบิลหรือยัง ถ้ายังไม่มี paymentId หรือเป็น 0 แปลว่ายังไม่ได้กดส่งบิล
       if (it.paymentId == null || it.paymentId == 0) {
-        const Color fallbackColor = Color(0xFFF57C00); // ใช้สีส้ม/เหลืองนวลให้เข้ากับดีไซน์ธีม
+        const Color fallbackColor = Color(0xFFF57C00); 
         return Container(
           width: double.infinity, padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
@@ -286,7 +309,6 @@ class _BillDetailPageState extends State<BillDetailPage> {
         );
       }
 
-      // 🔹 ถ้าส่งบิลเข้าสู่ระบบแล้ว ค่อยแสดงผลสถานะจริงตามปกติ
       Color statusColor = statusKey == "paid" ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
       String statusText = "ค้างชำระ";
       if (statusKey == "paid") statusText = "ชำระเงินเรียบร้อยแล้ว";
@@ -329,11 +351,17 @@ class _BillDetailPageState extends State<BillDetailPage> {
       final data = jsonDecode(res.body);
       
       if (data["ok"] == true && data["data"] != null) {
-        setState(() {
-          // ใช้ Factory แปลงข้อมูล Map กลับมาเป็นคลาสวัตถุ BillItem เสมอ ข้อมูลจะไม่แครชเมื่อรีเฟรช
-          it = BillItem.fromJson(Map<String, dynamic>.from(data["data"])); 
-          _updateStatusKey();
-        });
+        final fetchedItem = BillItem.fromJson(Map<String, dynamic>.from(data["data"]));
+        
+        // 🌟 ป้องกันไม่ให้แอปจำเดือนสลับ: อัปเดตข้อมูลก็ต่อเมื่อ บิลนั้นดึงตรงด้วย ID หรือมีข้อมูล เดือน และ ปี ตรงกับหน้าบิลที่เปิดเข้ามาตอนแรกเท่านั้น
+        if ((it.paymentId != null && it.paymentId! > 0) || (fetchedItem.month == it.month && fetchedItem.year == it.year)) {
+          setState(() {
+            it = fetchedItem; 
+            _updateStatusKey();
+          });
+        } else {
+          debugPrint("ระบบความปลอดภัยฝั่งแอปทำงาน: หลังบ้านส่งข้อมูลบิลผิดเดือนมา แอปจึงไม่เซฟทับตัวแปรหน้าเดิม");
+        }
       }
     } catch (e) { 
       debugPrint("Refresh Error: ${e.toString()}"); 
