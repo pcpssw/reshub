@@ -197,7 +197,6 @@ try {
             j(['success' => true, 'data' => $stmt->get_result()->fetch_all(MYSQLI_ASSOC)]);
             break;
 
-        // 🌟 เคสดึงข้อมูลผู้เช่า/แอดมินแยกหอพักแบบเชื่อมตารางจริงจากฐานข้อมูล
         case 'getDormUsers':
             requireFields($data, ['dorm_id', 'role_type']);
             $dorm_id = (int)$data['dorm_id'];
@@ -312,32 +311,42 @@ try {
             j(['success' => true, 'message' => 'อัปเดตสถานะสำเร็จ']);
             break;
 
+        // 🛠️ ส่วนที่แก้ไข: ปรับให้สามารถลบผู้ดูแลหอพัก ('o') ได้ พร้อมเคลียร์สิทธิ์ในตารางอื่นอัตโนมัติ
         case 'deleteUser':
             requireFields($data, ['user_id']);
             $target_user_id = (int)$data['user_id'];
 
-            $stmt = $conn->prepare("SELECT user_level FROM rh_users WHERE user_id = ?");
-            $stmt->bind_param('i', $target_user_id);
-            $stmt->execute();
-            $res = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            $stmtCheck = $conn->prepare("SELECT user_level FROM rh_users WHERE user_id = ?");
+            $stmtCheck->bind_param('i', $target_user_id);
+            $stmtCheck->execute();
+            $res = $stmtCheck->get_result()->fetch_assoc();
+            $stmtCheck->close();
 
             if (!$res) {
-                j(['success' => false, 'message' => 'ไม่พบข้อมูลผู้ใช้งานนี้ในระบบ'], 44);
+                j(['success' => false, 'message' => 'ไม่พบข้อมูลผู้ใช้งานนี้ในระบบ ❌'], 404);
             }
 
             $user_level = $res['user_level'] ?? '';
 
-            if ($user_level === 'a' || $user_level === 'o') {
-                j(['success' => false, 'message' => 'ระบบไม่อนุญาตให้ลบบัญชีผู้ดูแลระบบ หรือเจ้าของหอพักออกจากระบบได้ ❌'], 403);
+            // 🔒 ล็อกเฉพาะระดับแอดมินสูงสุดระบบกลาง ('a') เท่านั้นเพื่อความปลอดภัย
+            if ($user_level === 'a') {
+                j(['success' => false, 'message' => 'ระบบไม่อนุญาตให้ลบบัญชีผู้ดูแลระบบสูงสุดออกจากระบบได้ ❌'], 403);
             }
 
+            // 🔄 ทำการล้างข้อมูลในตารางสิทธิ์การผูกมัดหอพักออกก่อน เพื่อไม่ให้ติดเงื่อนไขความสัมพันธ์ฐานข้อมูล (Foreign Key)
+            $stmtM = $conn->prepare("DELETE FROM rh_dorm_memberships WHERE user_id = ?");
+            $stmtM->bind_param('i', $target_user_id);
+            $stmtM->execute();
+            $stmtM->close();
+
+            // 🗑️ ลบข้อมูลบัญชีผู้ใช้จริงออกจากตารางหลัก
             $stmtDel = $conn->prepare("DELETE FROM rh_users WHERE user_id = ?");
             $stmtDel->bind_param('i', $target_user_id);
+            
             if ($stmtDel->execute()) {
-                j(['success' => true, 'message' => 'ลบผู้ใช้งานทั่วไปเรียบร้อยแล้ว']);
+                j(['success' => true, 'message' => 'ลบผู้ใช้งานและถอดสิทธิ์ออกจากระบบเรียบร้อยแล้ว 🎉']);
             }
-            j(['success' => false, 'message' => 'ไม่สามารถลบผู้ใช้งานได้'], 500);
+            j(['success' => false, 'message' => 'ไม่สามารถลบผู้ใช้งานได้เนื่องจากข้อผิดพลาดของฐานข้อมูล'], 500);
             break;
 
         case 'bank_list':

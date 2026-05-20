@@ -760,7 +760,6 @@ class PlatformUserDetailPage extends StatelessWidget {
             ),
             const SizedBox(height: 35),
             
-            // 🛠️ ส่วนที่ปรับปรุง: เปลี่ยนดีไซน์ปุ่มลบให้เป็นแนวเดียวกับปุ่ม _logoutBtn ใน profile_page.dart ตามขอ
             if (!isAdmin)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -774,7 +773,7 @@ class PlatformUserDetailPage extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: fBody),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: cDark, // ใช้สีโทนน้ำตาลเข้มตามธีมแอปหลัก (เหมือน cTeddy)
+                      backgroundColor: cDark, 
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       elevation: 0,
@@ -850,53 +849,116 @@ class PlatformUserDetailPage extends StatelessWidget {
     );
   }
 
+  // 🛠️ ส่วนที่ปรับปรุง: แก้ไขเมธอดนี้ให้แสดง Dialog ถอดแบบดีไซน์แจ้งเตือน
   void _confirmDelete(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Text(
-          "ยืนยันการลบ",
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: fHeader,
-          ),
-        ),
-        content: const Text(
-          "คุณต้องการลบผู้ใช้งานรายนี้ใช่หรือไม่?",
-          style: TextStyle(
-            fontSize: fBody,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              "ยกเลิก",
-              style: TextStyle(
-                color: Colors.grey,
-                fontWeight: FontWeight.bold,
-                fontSize: fDetail,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 🔴 วงกลมสีชมพูอ่อน + ไอคอนถังขยะสีแดงตรงกลาง ถอดแบบดีไซน์แจ้งเตือนมาเป๊ะๆ
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFF0F1), 
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded, 
+                  color: Color(0xFFF05454), 
+                  size: 38,
+                ),
               ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _deleteUser(context);
-            },
-            child: const Text(
-              "ยืนยัน",
-              style: TextStyle(
-                color: Color(0xFFFF5252),
-                fontWeight: FontWeight.bold,
-                fontSize: fDetail,
+              const SizedBox(height: 24),
+              // 🏷️ หัวข้อ "ยืนยันการลบ" ใช้สีโทน cDark ของหน้านี้
+              const Text(
+                "ยืนยันการลบ", 
+                style: TextStyle(
+                  fontSize: 16, 
+                  fontWeight: FontWeight.w900, 
+                  color: cDark,
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              // 💬 ข้อความย่อยจัดกลาง 2 บรรทัดตามรูปแบบแจ้งเตือน
+              const Text(
+                "คุณต้องการลบผู้ใช้งานรายนี้ใช่หรือไม่?", 
+                textAlign: TextAlign.center, 
+                style: TextStyle(
+                  fontSize: fBody, 
+                  color: Colors.black45, 
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Text(
+                "ข้อมูลจะหายไปถาวร", 
+                textAlign: TextAlign.center, 
+                style: TextStyle(
+                  fontSize: fDetail, 
+                  color: Colors.black45, 
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 28),
+              // 🎛️ กลุ่มปุ่มกดยืนยัน (ElevatedButton สีน้ำตาลเข้ม) และ ยกเลิก (OutlinedButton ขอบมน)
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _deleteUser(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cDark, 
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        "ยืนยัน", 
+                        style: TextStyle(
+                          color: Colors.white, 
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: cAccent),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text(
+                        "ยกเลิก", 
+                        style: TextStyle(
+                          color: cDark, 
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
