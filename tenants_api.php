@@ -164,7 +164,7 @@ $user_id = (int)param_api("user_id", 0);
 
 /*
 |--------------------------------------------------------------------------
-| list = รายชื่อผู้เช่า / ผู้ดูแล / ผู้เช่าเก่า (ปรับปรุงแก้ปัญหาซ้ำซ้อนตอนย้ายห้อง)
+| list = รายชื่อผู้เช่า / ผู้ดูแล / ผู้เช่าเก่า 
 |--------------------------------------------------------------------------
 */
 if ($action === "list") {
@@ -178,21 +178,21 @@ if ($action === "list") {
         $params[] = $dorm_id;
     }
 
+    // ✅ แก้ไข SQL: ครอบ MAX() ในส่วนของคอลัมน์จากตาราง m และเพิ่มความชัดเจนใน GROUP BY เพื่อให้ผ่านกฎ ONLY_FULL_GROUP_BY
     $sql = "
         SELECT
             MAX(m.membership_id) AS membership_id,
             m.user_id AS tenant_id,
             m.user_id,
             m.dorm_id,
-            m.role_code,
-            m.approve_status,
+            MAX(m.role_code) AS role_code,
+            MAX(m.approve_status) AS approve_status,
             u.username,
             u.full_name,
             u.phone,
             u.user_level,
-            d.dorm_name,
+            MAX(d.dorm_name) AS dorm_name,
             
-            -- ค้นหาห้องปัจจุบันที่กำลังพักอยู่จริง ๆ จากตาราง rh_rooms เท่านั้น
             (SELECT r_curr.room_number FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS room_number,
             (SELECT r_curr.floor FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS floor,
             (SELECT b_curr.building_name FROM {$T_ROOMS} r_curr LEFT JOIN {$T_BLD} b_curr ON b_curr.building_id = r_curr.building_id WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS building,
@@ -200,23 +200,21 @@ if ($action === "list") {
             (SELECT r_curr.room_id FROM {$T_ROOMS} r_curr WHERE r_curr.tenant_id = u.user_id AND r_curr.dorm_id = m.dorm_id LIMIT 1) AS room_id,
 
             CASE
-                WHEN m.role_code IN ('a', 'o') THEN 'admin'
+                WHEN MAX(m.role_code) IN ('a', 'o') THEN 'admin'
                 ELSE 'tenant'
             END AS role,
             CASE
-                WHEN m.role_code = 'o' THEN 'owner'
-                WHEN m.role_code = 'a' THEN 'admin'
+                WHEN MAX(m.role_code) = 'o' THEN 'owner'
+                WHEN MAX(m.role_code) = 'a' THEN 'admin'
                 ELSE 'tenant'
             END AS role_in_dorm,
             
-            -- วิเคราะห์สถานะจากความจริง: ตราบใดที่มีชื่อครองห้องในตารางห้องพัก = active (ผู้เช่าปัจจุบัน) เสมอ
             CASE
-                WHEN m.role_code IN ('a', 'o') THEN 'active'
+                WHEN MAX(m.role_code) IN ('a', 'o') THEN 'active'
                 WHEN EXISTS (SELECT 1 FROM {$T_ROOMS} r_chk WHERE r_chk.tenant_id = u.user_id AND r_chk.dorm_id = m.dorm_id) THEN 'active'
                 ELSE 'former'
             END AS tenant_status,
             
-            -- มัดรวมประวัติเลขห้องพักทั้งหมดที่เคยอยู่อาศัยในอดีตส่งให้แอปพลิเคชัน
             (
                 SELECT GROUP_CONCAT(DISTINCT COALESCE(r_hist.room_number, '') ORDER BY sub_m.membership_id ASC SEPARATOR ', ')
                 FROM {$T_MEM} sub_m
@@ -236,7 +234,7 @@ if ($action === "list") {
         GROUP BY u.user_id, m.dorm_id
         ORDER BY
             CASE
-                WHEN m.role_code IN ('a', 'o') THEN 0
+                WHEN MAX(m.role_code) IN ('a', 'o') THEN 0
                 WHEN EXISTS (SELECT 1 FROM {$T_ROOMS} r_chk WHERE r_chk.tenant_id = u.user_id AND r_chk.dorm_id = m.dorm_id) THEN 1
                 ELSE 2
             END,
@@ -288,7 +286,7 @@ if ($action === "list") {
 
 /*
 |--------------------------------------------------------------------------
-| get = รายละเอียดคนเดียว (ปรับปรุงเพิ่มการส่งประวัติเลขห้องพักย้อนหลัง)
+| get = รายละเอียดคนเดียว 
 |--------------------------------------------------------------------------
 */
 if ($action === "get") {
@@ -306,6 +304,7 @@ if ($action === "get") {
         $params[] = $dorm_id;
     }
 
+    // ✅ แก้ไข SQL: ครอบ MAX() คอลัมน์ที่ไม่ได้อยู่ใน GROUP BY เช่นกัน เพื่อความปลอดภัยในส่วน "get"
     $sql = "
         SELECT
             u.user_id,
@@ -315,16 +314,16 @@ if ($action === "get") {
             u.user_level,
             MAX(m.membership_id) AS membership_id,
             m.dorm_id,
-            d.dorm_name,
-            m.role_code,
-            m.approve_status,
+            MAX(d.dorm_name) AS dorm_name,
+            MAX(m.role_code) AS role_code,
+            MAX(m.approve_status) AS approve_status,
             CASE
-                WHEN m.role_code = 'o' THEN 'owner'
-                WHEN m.role_code = 'a' THEN 'admin'
+                WHEN MAX(m.role_code) = 'o' THEN 'owner'
+                WHEN MAX(m.role_code) = 'a' THEN 'admin'
                 ELSE 'tenant'
             END AS role_in_dorm,
             CASE
-                WHEN m.role_code IN ('a', 'o') THEN 'active'
+                WHEN MAX(m.role_code) IN ('a', 'o') THEN 'active'
                 WHEN EXISTS (SELECT 1 FROM {$T_ROOMS} r_chk WHERE r_chk.tenant_id = u.user_id AND r_chk.dorm_id = m.dorm_id) THEN 'active'
                 ELSE 'former'
             END AS tenant_status,
@@ -456,7 +455,7 @@ if ($action === "remove") {
 
 /*
 |--------------------------------------------------------------------------
-| move_room = ย้ายห้องพักภายในหอเดิม (เก็บประวัติย้อนหลัง)
+| move_room = ย้ายห้องพักภายในหอเดิม 
 |--------------------------------------------------------------------------
 */
 if ($action === "move_room") {

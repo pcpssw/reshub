@@ -36,7 +36,7 @@ class _BillPageState extends State<BillPage> {
   bool _submitting = false;
   bool _pickingSlip = false;
   bool _noBill = false;
-  bool _hasShownOverduePopup = false; // ป้องกันไม่ให้เด้งซ้ำรัวๆ
+  bool _hasShownOverduePopup = false; 
 
   String get apiUrl => AppConfig.url("bills_api.php");
 
@@ -120,15 +120,18 @@ class _BillPageState extends State<BillPage> {
         setState(() {
           _paymentId = int.tryParse("${p["payment_id"]}") ?? 0;
           roomText = p["room_number"]?.toString() ?? "ไม่ทราบเลขห้อง";
-          water = _toDouble(p["water_price"]);
-          electric = _toDouble(p["electric_price"]);
+          
+          // จับคู่ตัวแปรใหม่ให้ตรงกับ API ดึงเลขมาได้ครบแน่นอน
+          rent = _toDouble(p["rent"]);
+          water = _toDouble(p["water_bill"]);
+          electric = _toDouble(p["elec_bill"]);
           waterUnit = _toDouble(p["water_unit"]);
-          waterPricePerUnit = _toDouble(p["water_rate"]);
-          electricUnit = _toDouble(p["electric_unit"]);
-          electricPricePerUnit = _toDouble(p["electric_rate"]);
-          total = _toDouble(p["total_price"]);
-          rent = total - water - electric;
-          status = (p["status"] ?? "unpaid").toString();
+          waterPricePerUnit = _toDouble(p["water_price_per_unit"]);
+          electricUnit = _toDouble(p["elec_unit"]);
+          electricPricePerUnit = _toDouble(p["elec_price_per_unit"]);
+          total = _toDouble(p["total"]);
+          status = (p["status_key"] ?? "unpaid").toString();
+          
           slipFromServer = p["slip_image"]?.toString();
           payDate = p["pay_date"]?.toString();
           bankAccounts = (p["accounts"] as List?)
@@ -138,7 +141,6 @@ class _BillPageState extends State<BillPage> {
           _noBill = false;
         });
 
-        // 🚨 เด้ง Popup แจ้งเตือนเมื่อสถานะคือ overdue
         if (status.toLowerCase() == "overdue" && !_hasShownOverduePopup) {
           _hasShownOverduePopup = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -178,7 +180,6 @@ class _BillPageState extends State<BillPage> {
   String _thaiMonthText() =>
       "${_thaiMonthFmt.format(DateTime(year, month, 1))} ${year + 543}";
 
-  // 🚨 Popup แจ้งเตือนค้างชำระ
   void _showOverdueAlert() {
     showDialog(
       context: context,
@@ -307,7 +308,6 @@ class _BillPageState extends State<BillPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        // 🚨 เปลี่ยนกรอบเป็นสีแดงถ้าเลยกำหนดชำระ
         border: Border.all(
           color: status.toLowerCase() == 'overdue' ? Colors.redAccent.withValues(alpha: 0.5) : _lineColor, 
           width: status.toLowerCase() == 'overdue' ? 2 : 1
@@ -318,7 +318,6 @@ class _BillPageState extends State<BillPage> {
           Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
-              // 🚨 เปลี่ยนหัวการ์ดเป็นสีแดงถ้าเลยกำหนด
               color: status.toLowerCase() == 'overdue' ? Colors.red.shade800 : _textColor,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(21)),
             ),
@@ -636,7 +635,7 @@ class _BillPageState extends State<BillPage> {
                 } else {
                   month--;
                 }
-                _hasShownOverduePopup = false; // เคลียร์สถานะเผื่อเลื่อนไปมา
+                _hasShownOverduePopup = false; 
               });
               _loadBill();
             },

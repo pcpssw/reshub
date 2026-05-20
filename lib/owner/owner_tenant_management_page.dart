@@ -29,8 +29,13 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
   bool loading = true;
   int dormId = 0;
   late TabController _tabController;
-  final ScrollController _scrollController = ScrollController(); // สำหรับควบคุมการเลื่อน
-  bool _showBackToTopButton = false; // Status สำหรับปุ่มเลื่อนขึ้นบน
+  
+  // ✅ แก้ไข: แยก ScrollController ออกเป็น 3 ตัว เพื่อไม่ให้แย่งสิทธิ์ควบคุมกันระหว่างแท็บ
+  final ScrollController _scrollTenant = ScrollController();
+  final ScrollController _scrollOldTenant = ScrollController();
+  final ScrollController _scrollAdmin = ScrollController();
+  
+  bool _showBackToTopButton = false; 
 
   List<Map<String, dynamic>> allUsers = [];
   String keyword = "";
@@ -40,26 +45,32 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
 
-    // ตรวจสอบตำแหน่งการเลื่อนเพื่อโชว์/ซ่อนปุ่ม
-    _scrollController.addListener(() {
-      if (_scrollController.offset >= 300) {
-        if (!_showBackToTopButton) {
-          setState(() => _showBackToTopButton = true);
-        }
-      } else {
-        if (_showBackToTopButton) {
-          setState(() => _showBackToTopButton = false);
-        }
-      }
-    });
+    // ✅ ติดตามตำแหน่งการเลื่อนแยกแต่ละตัว
+    _scrollTenant.addListener(_scrollListener);
+    _scrollOldTenant.addListener(_scrollListener);
+    _scrollAdmin.addListener(_scrollListener);
 
     _init();
+  }
+
+  // ✅ ฟังก์ชันตรวจจับการเลื่อนจอของทุกแท็บ
+  void _scrollListener() {
+    bool shouldShow = (_scrollTenant.hasClients && _scrollTenant.offset >= 300) ||
+                      (_scrollOldTenant.hasClients && _scrollOldTenant.offset >= 300) ||
+                      (_scrollAdmin.hasClients && _scrollAdmin.offset >= 300);
+
+    if (shouldShow != _showBackToTopButton) {
+      setState(() => _showBackToTopButton = shouldShow);
+    }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _scrollController.dispose(); // คืน Memory คืนระบบ
+    // ✅ คืน Memory ของ Controller ทั้ง 3 ตัว
+    _scrollTenant.dispose();
+    _scrollOldTenant.dispose();
+    _scrollAdmin.dispose();
     super.dispose();
   }
 
@@ -85,7 +96,15 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
         },
       );
 
-      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+      // 🔍 ดักจับดู URL บน Console
+      debugPrint("🔗 Request URL: $uri");
+
+      // ✅ ขยายเวลา Timeout เป็น 15 วินาที เผื่ออินเทอร์เน็ตระบบเซิร์ฟเวอร์จริงหน่วง
+      final res = await http.get(uri).timeout(const Duration(seconds: 15));
+      
+      // 🔍 ดักดู JSON ที่เซิร์ฟเวอร์ตอบกลับมาจริง ๆ
+      debugPrint("📥 Server Response: ${res.body}");
+
       final data = jsonDecode(res.body);
 
       if (data is Map && (data["ok"] == true || data["success"] == true)) {
@@ -98,23 +117,49 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       } else {
         if (!mounted) return;
         setState(() => allUsers = []);
+        
+        // ⚠️ แจ้งเตือนกรณีส่ง JSON สำเร็จ แต่ค่า ok/success กลับมาเป็น false
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("เซิร์ฟเวอร์ปฏิเสธข้อมูล: ${data['message'] ?? 'ไม่ทราบสาเหตุ'}")),
+        );
       }
     } catch (e) {
-      debugPrint("Error: $e");
+      debugPrint("❌ Error เซิร์ฟเวอร์จริง: $e");
       if (!mounted) return;
       setState(() => allUsers = []);
+      
+      // ⚠️ เด้งฟ้องทันทีถ้าตัวแอปต่อระบบจริงไม่ติด หรือแปลง JSON ไม่ผ่าน
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("เชื่อมต่อระบบจริงล้มเหลว: $e")),
+      );
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  // ฟังก์ชันเลื่อนกลับขึ้นไปบนสุด
+  // ✅ ฟังก์ชันเลื่อนกลับขึ้นไปบนสุด โดยจะตรวจสอบว่าเราอยู่แท็บไหนแล้วสั่งงานตัวนั้น
   void _scrollToTop() {
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-    );
+    ScrollController activeController;
+    switch (_tabController.index) {
+      case 1:
+        activeController = _scrollOldTenant;
+        break;
+      case 2:
+        activeController = _scrollAdmin;
+        break;
+      case 0:
+      default:
+        activeController = _scrollTenant;
+        break;
+    }
+
+    if (activeController.hasClients) {
+      activeController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   // --- Helper Methods ---
@@ -126,7 +171,6 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
   bool _isFormerTenant(Map<String, dynamic> u) {
     if (_isAdmin(u)) return false;
     final tenantStatus = (u["tenant_status"] ?? "").toString().toLowerCase();
-    // คัดแยกกลุ่มผู้เช่าเก่าจากการวิเคราะห์สถานะจริงฝั่งระบบฐานข้อมูล
     return tenantStatus == "former";
   }
 
@@ -136,13 +180,11 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       return roleInDorm == "owner" ? "ผู้ดูแลหอพัก" : "ผู้ดูแลหอพัก";
     }
 
-    // ตรวจสอบว่าเป็นผู้เช่าเก่าหรือไม่ หากใช่ ให้ดึงประวัติห้องทั้งหมดที่มัดรวมกันมาโชว์
     if (_isFormerTenant(t)) {
       final history = (t["all_rooms_history"] ?? "").toString().trim();
       return history.isNotEmpty ? "ห้องที่เคยอยู่: $history" : "ไม่มีประวัติห้องพัก";
     }
 
-    // ผู้เช่าปัจจุบัน แสดงผลอาคารและเลขห้องปกติ
     final b = (t["building"] ?? "").toString().trim();
     final r = (t["room_number"] ?? "").toString().trim();
     if (b.isEmpty && r.isEmpty) return "รอการจัดห้อง";
@@ -165,6 +207,13 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       final phone = (u["phone"] ?? "").toString().toLowerCase();
       return name.contains(k) || room.contains(k) || phone.contains(k);
     }).toList();
+  }
+
+  // ✅ ช่วยระบุจับคู่เจาะจง Controller ให้กับ ListView แต่ละประเภทกลุ่มผู้ใช้
+  ScrollController _getControllerForRole(String role) {
+    if (role == "admin") return _scrollAdmin;
+    if (role == "old_tenant") return _scrollOldTenant;
+    return _scrollTenant;
   }
 
   @override
@@ -225,7 +274,6 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
                 ),
               ],
             ),
-      // ปุ่มเด้งขึ้นบน (จะแสดงเมื่อเลื่อนลงมาเกิน 300px)
       floatingActionButton: _showBackToTopButton
           ? FloatingActionButton(
               onPressed: _scrollToTop,
@@ -265,12 +313,15 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
 
   Widget _buildListView(String role) {
     final filtered = _filteredList(role);
+    final currentController = _getControllerForRole(role); // ✅ เรียกเอา Controller ที่จับคู่ไว้มาใช้
+
     if (filtered.isEmpty) {
       return RefreshIndicator(
         onRefresh: _fetchTenants,
         color: cTextMain,
         child: ListView(
-          controller: _scrollController, // Controller สำหรับเช็คพิกัดเลื่อนจอ
+          controller: currentController, // ✅ เปลี่ยนเป็นตัวแปรแท็บนั้น ๆ
+          physics: const AlwaysScrollableScrollPhysics(), // ช่วยให้ลากนิ้วรีเฟรชได้เสมอแม้จอว่างเปล่า
           children: [
             SizedBox(
               height: MediaQuery.of(context).size.height * 0.55,
@@ -301,7 +352,7 @@ class _TenantListAdminPageState extends State<TenantListAdminPage>
       onRefresh: _fetchTenants,
       color: cTextMain,
       child: ListView.builder(
-        controller: _scrollController, // มอบสิทธิ์การควบคุมให้ ScrollController ทำงานร่วมกับ FloatingActionButton
+        controller: currentController, // ✅ เปลี่ยนเป็นตัวแปรแยกส่วนบุคคลเรียบร้อย
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
         itemCount: filtered.length,
         itemBuilder: (context, index) {
